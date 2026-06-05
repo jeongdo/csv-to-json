@@ -3,26 +3,139 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- 크롬 창 고유 식별 파비콘 경로를 매립한 .ico 파일로 지정 -->
+
     <link rel="icon" type="image/x-icon" href="/app.ico">
+
     <title>CsvToJson 변환기</title>
+
     <style>
-        body { font-family: 'Malgun Gothic', sans-serif; max-width: 90%; margin: 15px auto; padding: 15px; border: 1px solid #e0e0e0; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); background-color: #fcfcfc; overflow: hidden; }
+        body {
+            font-family: 'Malgun Gothic', sans-serif;
+            max-width: 90%;
+            margin: 15px auto;
+            padding: 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            background-color: #fcfcfc;
+            overflow: hidden;
+        }
 
-        .header-container { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 15px; }
-        .app-logo { width: 28px; height: 28px; object-fit: contain; }
-        h2 { text-align: center; color: #333; margin: 0; font-size: 18px; }
+        .header-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
 
-        .notice { background-color: #fff3cd; color: #856404; padding: 10px; border-radius: 6px; font-size: 12px; margin-bottom: 15px; border-left: 5px solid #ffeeba; line-height: 1.4; }
-        .form-group { margin-bottom: 15px; text-align: center; }
-        input[type="file"] { padding: 8px; border: 1px dashed #aaa; width: 100%; background: #fff; cursor: pointer; box-sizing: border-box; font-size: 13px; }
-        button { width: 100%; padding: 10px; background-color: #28a745; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: bold; }
-        button:hover { background-color: #218838; }
+        .app-logo {
+            width: 28px;
+            height: 28px;
+            object-fit: contain;
+        }
+
+        h2 {
+            text-align: center;
+            color: #333;
+            margin: 0;
+            font-size: 18px;
+        }
+
+        .notice {
+            background-color: #fff3cd;
+            color: #856404;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            margin-bottom: 15px;
+            border-left: 5px solid #ffeeba;
+            line-height: 1.4;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        input[type="file"] {
+            padding: 8px;
+            border: 1px dashed #aaa;
+            width: 100%;
+            background: #fff;
+            cursor: pointer;
+            box-sizing: border-box;
+            font-size: 13px;
+        }
+
+        button {
+            width: 100%;
+            padding: 10px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        button:hover {
+            background-color: #218838;
+        }
+
+        button:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        #toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+
+            min-width: 280px;
+            max-width: 420px;
+
+            padding: 14px 18px;
+
+            color: white;
+            font-size: 13px;
+
+            border-radius: 8px;
+
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+
+            opacity: 0;
+            transform: translateY(-20px);
+
+            transition: all 0.3s ease;
+
+            pointer-events: none; /* 평소에는 클릭을 통과시킴 */
+            z-index: 9999;
+        }
+
+        /* 수정된 영역 */
+        #toast.show {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto; /* 표시될 때는 마우스 이벤트를 받아들임 */
+            cursor: pointer;      /* 손가락 포인터 표시 */
+        }
+
+        #toast.success {
+            background: #28a745;
+        }
+
+        #toast.error {
+            background: #dc3545;
+        }
     </style>
 </head>
+
 <body>
+
 <div class="header-container">
-    <!-- 상단 타이틀 영역에 .ico 파일 연동 -->
     <img src="/app.ico" alt="Logo" class="app-logo">
     <h2>CSV to JSON 변환기</h2>
 </div>
@@ -32,26 +145,110 @@
     ※ 첫 행의 칼럼명을 기반으로 JSON의 key 값이 자동으로 생성됩니다.
 </div>
 
-<form id="convertForm" action="/convert" method="post" enctype="multipart/form-data">
+<form id="convertForm">
     <div class="form-group">
         <input type="file" name="csvFile" accept=".csv" required>
     </div>
     <button type="submit">업로드 및 JSON 다운로드</button>
 </form>
 
+<div id="toast"></div>
+
 <script>
-    // 크롬 앱 모드의 창 크기를 아담하게 강제 고정하는 함수
     function forceResize() {
         if (window.resizeTo) {
             window.resizeTo(520, 360);
         }
     }
+
     window.addEventListener('DOMContentLoaded', forceResize);
 
-    // 사용자가 창을 닫으면 백엔드 Go 프로세스도 즉시 동반 종료 신호를 보냄
+    // 타이머 관리를 위한 변수 선언
+    let toastTimer = null;
+
+    function showToast(message, type) {
+        const toast = document.getElementById('toast');
+
+        toast.textContent = message;
+        toast.className = type + ' show';
+
+        // 기존 대기 중인 타이머가 있다면 초기화
+        if (toastTimer) {
+            clearTimeout(toastTimer);
+        }
+
+        // 클릭 시 즉시 닫기 기능 및 타이머 클리어
+        toast.onclick = function () {
+            toast.classList.remove('show');
+            if (toastTimer) {
+                clearTimeout(toastTimer);
+            }
+        };
+
+        // 3초 후 자동 닫힘 코드
+        toastTimer = setTimeout(function() {
+            toast.classList.remove('show');
+        }, 3000);
+    }
+
+    document.getElementById('convertForm').addEventListener('submit', async function (e) {
+        e.preventDefault();
+
+        const button = document.querySelector('button[type="submit"]');
+        button.disabled = true;
+        button.innerText = '변환 중...';
+
+        const formData = new FormData(this);
+
+        try {
+            const response = await fetch('/convert', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                showToast(errorText, 'error');
+                button.disabled = false;
+                button.innerText = '업로드 및 JSON 다운로드';
+                return;
+            }
+
+            const blob = await response.blob();
+            let filename = 'result.json';
+            const disposition = response.headers.get('Content-Disposition');
+
+            if (disposition) {
+                const match = disposition.match(/filename="?([^"]+)"?/);
+                if (match) {
+                    filename = match[1];
+                }
+            }
+
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+
+            showToast('변환이 완료되었습니다.', 'success');
+
+        } catch (err) {
+            showToast('변환 중 오류가 발생했습니다.', 'error');
+        }
+
+        button.disabled = false;
+        button.innerText = '업로드 및 JSON 다운로드';
+    });
+
     window.addEventListener('beforeunload', function () {
         navigator.sendBeacon('/shutdown');
     });
 </script>
+
 </body>
 </html>
