@@ -48,13 +48,6 @@
     }
     window.addEventListener('DOMContentLoaded', forceResize);
 
-    // 변환 성공 후 다운로드가 트리거되면 1초 뒤 창을 완전히 닫음
-    document.getElementById('convertForm').addEventListener('submit', function() {
-        setTimeout(function() {
-            window.close();
-        }, 1000);
-    });
-
     // 사용자가 창을 닫으면 백엔드 Go 프로세스도 즉시 동반 종료 신호를 보냄
     window.addEventListener('beforeunload', function () {
         navigator.sendBeacon('/shutdown');
