@@ -1,0 +1,121 @@
+body {
+    font-family: 'Malgun Gothic', sans-serif;
+    max-width: 90%;
+    margin: 15px auto;
+    padding: 15px;
+    border: 1px solid #e0e0e0;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    background-color: #fcfcfc;
+    overflow: hidden;
+}
+
+.header-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.app-logo {
+    width: 28px;
+    height: 28px;
+    object-fit: contain;
+}
+
+h2 {
+    text-align: center;
+    color: #333;
+    margin: 0;
+    font-size: 18px;
+}
+
+.notice {
+    background-color: #fff3cd;
+    color: #856404;
+    padding: 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    margin-bottom: 15px;
+    border-left: 5px solid #ffeeba;
+    line-height: 1.4;
+}
+
+.form-group {
+    margin-bottom: 15px;
+    text-align: center;
+}
+
+input[type="file"] {
+    padding: 8px;
+    border: 1px dashed #aaa;
+    width: 100%;
+    background: #fff;
+    cursor: pointer;
+    box-sizing: border-box;
+    font-size: 13px;
+}
+
+button {
+    width: 100%;
+    padding: 10px;
+    background-color: #28a745;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+button:hover {
+    background-color: #218838;
+}
+
+button:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+#toast {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+
+    min-width: 280px;
+    max-width: 420px;
+
+    padding: 14px 18px;
+
+    color: white;
+    font-size: 13px;
+
+    border-radius: 8px;
+
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+
+    opacity: 0;
+    transform: translateY(-20px);
+
+    transition: all 0.3s ease;
+
+    pointer-events: none; /* 평소에는 클릭을 통과시킴 */
+    z-index: 9999;
+}
+
+/* 수정된 영역 */
+#toast.show {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto; /* 표시될 때는 마우스 이벤트를 받아들임 */
+    cursor: pointer;      /* 손가락 포인터 표시 */
+}
+
+#toast.success {
+    background: #28a745;
+}
+
+#toast.error {
+    background: #dc3545;
+}
