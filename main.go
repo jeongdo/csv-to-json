@@ -22,6 +22,9 @@ import (
 //go:embed index.html
 var htmlContent string
 
+//go:embed style.css
+var cssContent []byte // 👈 CSS 임베드 추가
+
 //go:embed csv_to_json.ico
 var iconBytes []byte
 
@@ -127,8 +130,12 @@ func main() {
 	mux.HandleFunc("/convert", convertHandler)
 	mux.HandleFunc("/shutdown", shutdownHandler)
 
-	mux.HandleFunc("/app.ico", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/style.css", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/css")
+		w.Write(cssContent)
+	})
 
+	mux.HandleFunc("/csv_to_json.ico", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/x-icon")
 		w.Write(iconBytes)
 	})
