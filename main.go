@@ -218,7 +218,11 @@ func main() {
 		cmd.Run()
 	}()
 
-	server.Serve(listener)
+	if err := server.Serve(listener); err != nil &&
+		err != http.ErrServerClosed {
+
+		fmt.Println(err)
+	}
 }
 
 func indexHandler(w http.ResponseWriter, r *http.Request) {
@@ -234,7 +238,14 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tmpl.Execute(w, nil)
+	if err := tmpl.Execute(w, nil); err != nil {
+		http.Error(
+			w,
+			"템플릿 출력 실패",
+			http.StatusInternalServerError,
+		)
+		return
+	}
 }
 
 func convertHandler(w http.ResponseWriter, r *http.Request) {
@@ -248,7 +259,14 @@ func convertHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	r.ParseMultipartForm(100 << 20)
+	if err := r.ParseMultipartForm(100 << 20); err != nil {
+		http.Error(
+			w,
+			"업로드 파일이 너무 크거나 손상되었습니다.",
+			http.StatusBadRequest,
+		)
+		return
+	}
 
 	file, header, err := r.FormFile("csvFile")
 
