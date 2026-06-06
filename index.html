@@ -38,21 +38,17 @@
 
     window.addEventListener('DOMContentLoaded', forceResize);
 
-    // 타이머 관리를 위한 변수 선언
     let toastTimer = null;
 
     function showToast(message, type) {
         const toast = document.getElementById('toast');
-
         toast.textContent = message;
         toast.className = type + ' show';
 
-        // 기존 대기 중인 타이머가 있다면 초기화
         if (toastTimer) {
             clearTimeout(toastTimer);
         }
 
-        // 클릭 시 즉시 닫기 기능 및 타이머 클리어
         toast.onclick = function () {
             toast.classList.remove('show');
             if (toastTimer) {
@@ -60,7 +56,6 @@
             }
         };
 
-        // 3초 후 자동 닫힘 코드
         toastTimer = setTimeout(function () {
             toast.classList.remove('show');
         }, 3000);
@@ -72,6 +67,18 @@
         const button = document.querySelector('button[type="submit"]');
         button.disabled = true;
         button.innerText = '변환 중...';
+
+        // 👈 [수정] 업로드한 파일 객체에서 원본 파일명을 안전하게 선제 추출
+        const fileInput = this.querySelector('input[name="csvFile"]');
+        const file = fileInput.files[0];
+        let filename = 'result.json';
+
+        if (file) {
+            const originalName = file.name;
+            const lastDot = originalName.lastIndexOf('.');
+            // 확장자를 제외한 진짜 파일명에 .json만 깔끔하게 붙임 (예: 정상.csv -> 정상.json)
+            filename = (lastDot !== -1 ? originalName.substring(0, lastDot) : originalName) + '.json';
+        }
 
         const formData = new FormData(this);
 
@@ -90,19 +97,11 @@
             }
 
             const blob = await response.blob();
-            let filename = 'result.json';
-            const disposition = response.headers.get('Content-Disposition');
-
-            if (disposition) {
-                const match = disposition.match(/filename="?([^"]+)"?/);
-                if (match) {
-                    filename = match[1];
-                }
-            }
-
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
+
+            // 👈 [핵심] 불안정한 백엔드 헤더 정규식 파싱을 버리고 위에서 추출한 동적 파일명 꽂기
             a.download = filename;
 
             document.body.appendChild(a);
