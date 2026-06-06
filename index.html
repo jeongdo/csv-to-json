@@ -27,8 +27,29 @@
 </div>
 
 <form id="convertForm">
-    <div class="form-group">
-        <input type="file" name="csvFile" accept=".csv" required>
+
+    <div id="dropZone" class="drop-zone">
+        <div class="drop-zone-content">
+            <div class="drop-icon"></div>
+
+            <div id="dropText" class="drop-text">
+                Drag & Drop CSV File Here
+            </div>
+
+            <div class="drop-subtext">
+                or
+            </div>
+
+            <label for="csvFile" class="file-select-btn">
+                Select CSV File
+            </label>
+
+            <input id="csvFile" type="file" name="csvFile" accept=".csv" required hidden>
+
+            <div id="selectedFileName" class="selected-file">
+                No file selected
+            </div>
+        </div>
     </div>
 
     <button id="convertButton" type="submit">
