@@ -131,10 +131,7 @@ func convertHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	buf := make([]byte, 512*1024)
-	n, _ := file.Read(buf)
-
-	delim, mixed := detectDelimiterAdvanced(strings.NewReader(string(buf[:n])))
+	delim, mixed := detectDelimiterAdvanced(file)
 
 	if mixed {
 		writeError(
@@ -264,6 +261,11 @@ func detectDelimiterAdvanced(r io.Reader) (rune, bool) {
 	sample := string(buf[:n])
 
 	lines := strings.Split(sample, "\n")
+
+	// 끊긴 마지막 줄을 검사하면 칼럼 갯수가 모자라 무조건 에러가 나므로, 마지막 줄은 검사 대상에서 제외합니다.
+	if len(lines) > 1 && n == len(buf) {
+		lines = lines[:len(lines)-1]
+	}
 
 	candidates := []rune{',', '|', ';', '\t'}
 
