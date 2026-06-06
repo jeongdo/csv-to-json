@@ -131,7 +131,28 @@ func convertHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
+	buf := make([]byte, 512*1024)
+	n, _ := file.Read(buf)
+
+	delim, mixed := detectDelimiterAdvanced(strings.NewReader(string(buf[:n])))
+
+	if mixed {
+		writeError(
+			w,
+			http.StatusBadRequest,
+			"MIXED_DELIMITER_DETECTED",
+			"",
+		)
+		return
+	}
+
+	// 안전하게 rewind (Seek 가능한 경우만)
+	if seeker, ok := file.(io.Seeker); ok {
+		_, _ = seeker.Seek(0, 0)
+	}
+
 	reader := csv.NewReader(file)
+	reader.Comma = delim
 
 	headers, err := reader.Read()
 	if err != nil {
@@ -234,4 +255,84 @@ func convertHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	io.WriteString(w, "\n]")
+}
+
+func detectDelimiterAdvanced(r io.Reader) (rune, bool) {
+
+	buf := make([]byte, 512*1024)
+	n, _ := r.Read(buf)
+	sample := string(buf[:n])
+
+	lines := strings.Split(sample, "\n")
+
+	candidates := []rune{',', '|', ';', '\t'}
+
+	// 1. 텍스트 안에 실제로 존재하는 구분자만 후보로 추려냅니다.
+	var presentCandidates []rune
+	for _, d := range candidates {
+		if strings.ContainsRune(sample, d) {
+			presentCandidates = append(presentCandidates, d)
+		}
+	}
+
+	// 2. 어떤 구분자도 없다면 잘못된 파일로 간주하고 에러 반환
+	if len(presentCandidates) == 0 {
+		return ',', true
+	}
+
+	// 3. 존재하는 구분자들만 대상으로 칼럼 일관성 검사
+	var validDelims []rune
+	for _, d := range presentCandidates {
+		// 💡 targetLines 대신 원본 lines를 그대로 전달합니다.
+		if isValidDelimiter(lines, d) {
+			validDelims = append(validDelims, d)
+		}
+	}
+
+	// 존재하는 구분자들 중 구조가 맞는 게 없으면 파일 손상
+	if len(validDelims) == 0 {
+		return ',', true
+	}
+
+	// 통과한 구분자가 여러 개면 진짜 혼합 에러
+	if len(validDelims) > 1 {
+		return ',', true
+	}
+
+	return validDelims[0], false
+}
+
+func isValidDelimiter(lines []string, delim rune) bool {
+
+	var baseLen int
+	found := false
+
+	for _, line := range lines {
+
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		r := csv.NewReader(strings.NewReader(line))
+		r.Comma = delim
+
+		rec, err := r.Read()
+		if err != nil {
+			return false
+		}
+
+		if !found {
+			baseLen = len(rec)
+			found = true
+			continue
+		}
+
+		// 구조 깨지면 즉시 탈락
+		if len(rec) != baseLen {
+			return false
+		}
+	}
+
+	return found
 }
