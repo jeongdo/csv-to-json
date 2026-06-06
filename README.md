@@ -25,6 +25,7 @@ The application runs entirely on the local machine, requires no installation, an
 * Korean / English UI localization
 * Chrome / Edge App Mode desktop UI
 * Toast notification based error handling
+* Drag & Drop CSV file support
 * Automatic process cleanup on application exit
 
 ---

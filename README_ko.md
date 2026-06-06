@@ -25,8 +25,9 @@ CsvToJson은 CSV 파일을 JSON 형식으로 변환하는 휴대용 데스크톱
 * 한국어 / 영어 UI 지원
 * Chrome / Edge App Mode 기반 데스크톱 UI
 * Toast 알림 기반 오류 처리
+* CSV 파일 Drag & Drop 지원
 * 프로그램 종료 시 자동 프로세스 정리
-
+ 
 ---
 
 ## 동작 방식
