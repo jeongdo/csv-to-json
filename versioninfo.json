@@ -1,0 +1,11 @@
+{
+    "FixedFileVersion": {
+    "Major": 0, "Minor": 0, "Patch": 1, "Build": 0
+},
+    "StringFileInfo": {
+    "FileDescription": "CSV to JSON Converter",
+        "ProductName": "csv-to-json"
+},
+    "IconPath": "app.ico",
+    "ManifestPath": "app.manifest"
+}
