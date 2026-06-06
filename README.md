@@ -11,6 +11,7 @@ The application runs entirely on the local machine, requires no installation, an
 ## Features
 
 * Single executable deployment
+* Automatic delimiter detection (CSV, TSV, pipe, semicolon)
 * Embedded HTML, CSS, JavaScript and Icon assets using Go Embed
 * Local-only processing (no external network communication)
 * Automatic JSON file download
@@ -215,7 +216,6 @@ Not currently supported:
 * Nested JSON generation
 * Schema mapping
 * Custom output formatting
-* Automatic delimiter detection
 
 ---
 
