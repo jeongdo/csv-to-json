@@ -11,19 +11,51 @@ import (
 	"strings"
 )
 
+type ErrorResponse struct {
+	Code   string `json:"code"`
+	Detail string `json:"detail,omitempty"`
+}
+
+func writeError(
+	w http.ResponseWriter,
+	status int,
+	code string,
+	detail string,
+) {
+	w.Header().Set(
+		"Content-Type",
+		"application/json; charset=utf-8",
+	)
+
+	w.WriteHeader(status)
+
+	_ = json.NewEncoder(w).Encode(
+		ErrorResponse{
+			Code:   code,
+			Detail: detail,
+		},
+	)
+}
+
 func removeBOM(s string) string {
 	return strings.TrimPrefix(s, "\uFEFF")
 }
 
 func validateHeaders(headers []string) error {
+
 	exists := make(map[string]bool)
+
 	for _, h := range headers {
 		h = strings.TrimSpace(h)
 		if h == "" {
-			return fmt.Errorf("빈 헤더가 존재합니다")
+			return fmt.Errorf("EMPTY_HEADER")
 		}
+
 		if exists[h] {
-			return fmt.Errorf("중복 헤더 발견: %s", h)
+			return fmt.Errorf(
+				"DUPLICATE_HEADER:%s",
+				h,
+			)
 		}
 		exists[h] = true
 	}
@@ -68,18 +100,33 @@ func inferValueJSON(s string) string {
 // 대용량 유입에도 메모리를 먹지 않는 완전한 스트리밍 변환기
 func convertHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "잘못된 접근입니다.", http.StatusMethodNotAllowed)
+		writeError(
+			w,
+			http.StatusMethodNotAllowed,
+			"INVALID_METHOD",
+			"",
+		)
 		return
 	}
 
 	if err := r.ParseMultipartForm(100 << 20); err != nil {
-		http.Error(w, "업로드 파일이 너무 크거나 손상되었습니다.", http.StatusBadRequest)
+		writeError(
+			w,
+			http.StatusBadRequest,
+			"UPLOAD_FAILED",
+			"",
+		)
 		return
 	}
 
 	file, _, err := r.FormFile("csvFile") // 👈 사용하지 않는 header 식별자 생략 (_)
 	if err != nil {
-		http.Error(w, "파일을 읽는 중 오류가 발생했습니다.", http.StatusBadRequest)
+		writeError(
+			w,
+			http.StatusBadRequest,
+			"FILE_READ_FAILED",
+			"",
+		)
 		return
 	}
 	defer file.Close()
@@ -88,7 +135,12 @@ func convertHandler(w http.ResponseWriter, r *http.Request) {
 
 	headers, err := reader.Read()
 	if err != nil {
-		http.Error(w, "헤더를 읽을 수 없습니다.", http.StatusBadRequest)
+		writeError(
+			w,
+			http.StatusBadRequest,
+			"HEADER_READ_FAILED",
+			"",
+		)
 		return
 	}
 
@@ -97,8 +149,33 @@ func convertHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := validateHeaders(headers); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+		msg := err.Error()
+
+		if msg == "EMPTY_HEADER" {
+			writeError(
+				w,
+				http.StatusBadRequest,
+				"EMPTY_HEADER",
+				"",
+			)
+			return
+		}
+
+		if strings.HasPrefix(
+			msg,
+			"DUPLICATE_HEADER:",
+		) {
+			writeError(
+				w,
+				http.StatusBadRequest,
+				"DUPLICATE_HEADER",
+				strings.TrimPrefix(
+					msg,
+					"DUPLICATE_HEADER:",
+				),
+			)
+			return
+		}
 	}
 
 	// 👈 [개선] 파일명은 프론트엔드가 핸들링하므로, 백엔드는 표준 다운로드 헤더 스펙만 깔끔하게 유지합니다.

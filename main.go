@@ -22,6 +22,9 @@ var htmlContent string
 //go:embed style.css
 var cssContent string
 
+//go:embed app.js
+var jsContent string
+
 //go:embed app.ico
 var iconBytes []byte
 
@@ -77,6 +80,14 @@ func main() {
 	mux.HandleFunc("/", indexHandler)
 	mux.HandleFunc("/convert", convertHandler)
 	mux.HandleFunc("/shutdown", shutdownHandler)
+
+	mux.HandleFunc("/app.js", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set(
+			"Content-Type",
+			"application/javascript; charset=utf-8",
+		)
+		io.WriteString(w, jsContent)
+	})
 
 	mux.HandleFunc("/style.css", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/css; charset=utf-8")
