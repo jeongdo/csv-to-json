@@ -1,8 +1,8 @@
-# CsvToJson
+# csv-to-json
 
 A lightweight desktop CSV to JSON converter built with Go.
 
-CsvToJson is a portable desktop utility that converts CSV files into JSON format with a simple graphical interface.
+csv-to-json is a portable desktop utility that converts CSV files into JSON format with a simple graphical interface.
 
 The application runs entirely on the local machine, requires no installation, and has no external dependencies.
 
@@ -36,7 +36,7 @@ The application runs entirely on the local machine, requires no installation, an
 ```text
 CSV File
     ↓
-CsvToJson
+csv-to-json
     ↓
 CSV Validation
     ↓
@@ -45,7 +45,8 @@ Streaming Conversion
 JSON Download
 ```
 
-The application starts a temporary local HTTP server, launches a browser window in App Mode, converts CSV records into JSON format, and automatically downloads the generated file.
+The application starts a temporary local HTTP server, launches a browser window in App Mode, converts CSV records into
+JSON format, and automatically downloads the generated file.
 
 All processing occurs locally on the user's machine.
 
@@ -53,7 +54,14 @@ All processing occurs locally on the user's machine.
 
 ## Supported Data Types
 
-The converter automatically detects common JSON data types.
+csv-to-json automatically analyzes input data and applies the optimal JSON data types.
+
+Supported types:
+
+* String
+* Integer
+* Float
+* Boolean
 
 ### Input CSV
 
@@ -67,27 +75,20 @@ Lee,30,4200,false
 
 ```json
 [
-    {
-        "name": "Kim",
-        "age": 20,
-        "salary": 3500.50,
-        "active": true
-    },
-    {
-        "name": "Lee",
-        "age": 30,
-        "salary": 4200,
-        "active": false
-    }
+  {
+    "name": "Kim",
+    "age": 20,
+    "salary": 3500.50,
+    "active": true
+  },
+  {
+    "name": "Lee",
+    "age": 30,
+    "salary": 4200,
+    "active": false
+  }
 ]
 ```
-
-Supported types:
-
-* String
-* Integer
-* Float
-* Boolean
 
 ---
 
@@ -104,11 +105,12 @@ zipcode
 
 ```json
 {
-    "zipcode": "01001"
+  "zipcode": "01001"
 }
 ```
 
-Values with meaningful leading zeros remain strings to prevent accidental corruption of postal codes, employee IDs, product codes, and similar identifiers.
+Values with meaningful leading zeros remain strings to prevent accidental corruption of postal codes, employee IDs,
+product codes, and similar identifiers.
 
 ---
 
@@ -175,7 +177,7 @@ If Chrome or Edge is unavailable, the application automatically falls back to th
 ## Project Structure
 
 ```text
-CsvToJson
+csv-to-json
 │
 ├── main.go
 ├── browser.go
@@ -191,6 +193,30 @@ CsvToJson
 
 ## Build
 
+### 1. Prerequisites (Required Tools Installation)
+
+Install `goversioninfo` for handling icons and Windows resource embedding.
+
+```bash
+go install github.com/josephspurrier/goversioninfo/cmd/goversioninfo@latest
+```
+
+2. Resource Files (Optional)
+
+To include an icon and version information in the executable, place the following files in the project root:
+
+* app.ico : Application icon
+* versioninfo.json : Version information configuration file
+* app.manifest : Windows application manifest (execution permissions)
+
+### 3. Generate Resource File (.syso)
+
+```bash
+goversioninfo -platform-specific=true
+```
+
+### 4. Final Build
+
 ```bash
 go build -ldflags="-H windowsgui" -o CsvToJson.exe
 ```
@@ -200,7 +226,7 @@ go build -ldflags="-H windowsgui" -o CsvToJson.exe
 ## Requirements
 
 * Windows 10+
-* Go 1.24+ (development only)
+* Go 1.26.4 (development only)
 
 No installation is required for end users.
 
@@ -210,7 +236,7 @@ No installation is required for end users.
 
 Current version intentionally focuses on simplicity.
 
-Not currently supported:
+Not supported:
 
 * XLSX input
 * Nested JSON generation
