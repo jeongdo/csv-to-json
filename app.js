@@ -14,7 +14,7 @@ const LANG = {
             FILE_READ_FAILED: "파일을 읽는 중 오류가 발생했습니다.",
             HEADER_READ_FAILED: "헤더를 읽을 수 없습니다.",
             EMPTY_HEADER: "빈 헤더가 존재합니다.",
-            DUPLICATE_HEADER: function(detail) {
+            DUPLICATE_HEADER: function (detail) {
                 return `중복 헤더 발견: ${detail}`;
             },
             CSV_PARSE_FAILED: "CSV 형식이 올바르지 않습니다.",
@@ -37,7 +37,7 @@ const LANG = {
             FILE_READ_FAILED: "Failed to read file.",
             HEADER_READ_FAILED: "Failed to read CSV header.",
             EMPTY_HEADER: "Empty header detected.",
-            DUPLICATE_HEADER: function(detail) {
+            DUPLICATE_HEADER: function (detail) {
                 return `Duplicate header: ${detail}`
             },
             CSV_PARSE_FAILED: "Invalid CSV format.",
@@ -63,7 +63,7 @@ function applyLanguage() {
 
 function forceResize() {
     if (window.resizeTo) {
-        window.resizeTo(520, 360);
+        window.resizeTo(600, 450);
     }
 }
 
@@ -202,5 +202,57 @@ window.addEventListener(
     "beforeunload",
     function () {
         navigator.sendBeacon("/shutdown");
+    }
+);
+
+
+const dropZone = document.getElementById("dropZone");
+const fileInput = document.getElementById("csvFile");
+const selectedFileName = document.getElementById("selectedFileName");
+
+dropZone.addEventListener(
+    "dragover",
+    function (e) {
+        e.preventDefault();
+        dropZone.classList.add("drag-over");
+    }
+);
+
+dropZone.addEventListener(
+    "dragleave",
+    function () {
+        dropZone.classList.remove("drag-over");
+    }
+);
+
+dropZone.addEventListener(
+    "drop",
+    function (e) {
+
+        e.preventDefault();
+
+        dropZone.classList.remove("drag-over");
+
+        const files = e.dataTransfer.files;
+
+        if (files.length > 0) {
+
+            fileInput.files = files;
+
+            selectedFileName.innerText =
+                files[0].name;
+        }
+    }
+);
+
+fileInput.addEventListener(
+    "change",
+    function () {
+
+        if (this.files.length > 0) {
+
+            selectedFileName.innerText =
+                this.files[0].name;
+        }
     }
 );

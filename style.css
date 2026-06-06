@@ -1,13 +1,15 @@
 body {
     font-family: 'Malgun Gothic', sans-serif;
-    max-width: 90%;
-    margin: 15px auto;
+    margin: 15px;
     padding: 15px;
+    box-sizing: border-box;
+
     border: 1px solid #e0e0e0;
     border-radius: 12px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     background-color: #fcfcfc;
-    overflow: hidden;
+
+    user-select: none;
 }
 
 .header-container {
@@ -42,21 +44,6 @@ h2 {
     line-height: 1.4;
 }
 
-.form-group {
-    margin-bottom: 15px;
-    text-align: center;
-}
-
-input[type="file"] {
-    padding: 8px;
-    border: 1px dashed #aaa;
-    width: 100%;
-    background: #fff;
-    cursor: pointer;
-    box-sizing: border-box;
-    font-size: 13px;
-}
-
 button {
     width: 100%;
     padding: 10px;
@@ -67,15 +54,22 @@ button {
     cursor: pointer;
     font-size: 14px;
     font-weight: bold;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+    margin-top: 10px;
 }
 
 button:hover {
     background-color: #218838;
 }
 
+button:active {
+    transform: scale(0.98);
+}
+
 button:disabled {
-    opacity: 0.7;
+    background-color: #8ccf9b;
     cursor: not-allowed;
+    opacity: 0.8;
 }
 
 #toast {
@@ -83,8 +77,9 @@ button:disabled {
     top: 20px;
     right: 20px;
 
-    min-width: 280px;
-    max-width: 420px;
+    max-width: 320px;
+    width: fit-content;
+    min-width: unset;
 
     padding: 14px 18px;
 
@@ -109,7 +104,7 @@ button:disabled {
     opacity: 1;
     transform: translateY(0);
     pointer-events: auto; /* 표시될 때는 마우스 이벤트를 받아들임 */
-    cursor: pointer;      /* 손가락 포인터 표시 */
+    cursor: pointer; /* 손가락 포인터 표시 */
 }
 
 #toast.success {
@@ -118,4 +113,74 @@ button:disabled {
 
 #toast.error {
     background: #dc3545;
+}
+
+.drop-zone {
+    border: 2px dashed #4a90e2;
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    transition: background-color 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.2s ease;
+    margin-bottom: 15px;
+    background: #fafafa;
+    cursor: pointer;
+}
+
+.drop-zone.drag-over {
+    background: #eef6ff;
+    border-color: #2f6fd6;
+    transform: scale(1.01);
+}
+
+.drop-zone:hover {
+    border-color: #5aa0f0;
+    background: #f8fbff;
+}
+
+.drop-icon {
+    font-size: 32px;
+    margin-bottom: 8px;
+}
+
+.drop-text {
+    font-size: 16px;
+    font-weight: bold;
+    margin-bottom: 4px;
+}
+
+.drop-subtext {
+    color: #777;
+    margin-bottom: 6px;
+}
+
+.file-select-btn {
+    display: inline-block;
+    padding: 7px 18px;
+    border-radius: 6px;
+    background: #4a90e2;
+    color: white;
+    cursor: pointer;
+    text-decoration: none;
+    font-weight: bold;
+}
+
+.file-select-btn:hover {
+    opacity: 0.9;
+}
+
+.file-select-btn {
+    transition: opacity 0.2s ease, transform 0.1s ease;
+}
+
+.selected-file {
+    margin-top: 12px;
+    user-select: text;
+    font-size: 13px;
+    color: #888;
+
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
