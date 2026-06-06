@@ -5,12 +5,12 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
-	"html/template"
 	"io"
 	"net"
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"syscall"
 	"time"
@@ -31,11 +31,18 @@ func killExistingProcesses() {
 	currentPID := os.Getpid()
 
 	if runtime.GOOS == "windows" {
+		// 실행 파일의 이름을 동적으로 가져옴 (예: C:\Tool\CsvToJson.exe -> CsvToJson.exe)
+		exePath, err := os.Executable()
+		if err != nil {
+			return
+		}
+		exeName := filepath.Base(exePath)
+
 		cmd := exec.Command(
 			"taskkill",
 			"/F",
 			"/IM",
-			"CsvToJson.exe",
+			exeName, // 하드코딩 대신 동적 변수 사용
 			"/FI",
 			fmt.Sprintf("PID ne %d", currentPID),
 		)
@@ -45,6 +52,7 @@ func killExistingProcesses() {
 		}
 
 		cmd.Run()
+		// 200ms 정도는 여유를 주는 게 시스템상 안정적입니다.
 		time.Sleep(200 * time.Millisecond)
 	}
 }
@@ -92,7 +100,7 @@ func main() {
 		Handler: mux,
 	}
 
-	// 👈 분리된 browser.go의 함수를 호출하여 메인 루프를 간결하게 유지
+	// 분리된 browser.go의 함수를 호출하여 메인 루프를 간결하게 유지
 	go func() {
 		time.Sleep(50 * time.Millisecond)
 		launchAppWindow(url, 520, 450)
@@ -103,14 +111,8 @@ func main() {
 	}
 }
 
+// 💡 [개선] html/template 오버헤드를 제거하고 완전한 static 스트링 구조로 직통 서빙
 func indexHandler(w http.ResponseWriter, r *http.Request) {
-	tmpl, err := template.New("index").Parse(htmlContent)
-	if err != nil {
-		http.Error(w, "템플릿 로딩 실패", http.StatusInternalServerError)
-		return
-	}
-	if err := tmpl.Execute(w, nil); err != nil {
-		http.Error(w, "템플릿 출력 실패", http.StatusInternalServerError)
-		return
-	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	io.WriteString(w, htmlContent)
 }

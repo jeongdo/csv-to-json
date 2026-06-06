@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -29,6 +30,41 @@ func validateHeaders(headers []string) error {
 	return nil
 }
 
+// 💡 각 세포(Cell)의 문자를 분석하여 알맞은 JSON 데이터 타입 표현식으로 변환
+func inferValueJSON(s string) string {
+	sClean := strings.TrimSpace(s)
+
+	// 1. 빈 값은 그냥 빈 문자열로 처리
+	if sClean == "" {
+		return `""`
+	}
+
+	// 2. 불리언(Boolean) 판별
+	if sClean == "true" || sClean == "false" {
+		return sClean
+	}
+
+	// 1️⃣ "010", "00234" 등 앞자리 0 전면 방어
+	if len(sClean) > 1 && sClean[0] == '0' && sClean[1] != '.' {
+		b, _ := json.Marshal(s) // 숫자로 바꾸지 않고 곧바로 "010" 문자열 처리
+		return string(b)
+	}
+
+	// 2️⃣ 변환 시도하다가 에러 나면?
+	if _, err := strconv.ParseInt(sClean, 10, 64); err == nil {
+		return sClean
+	}
+	if _, err := strconv.ParseFloat(sClean, 64); err == nil {
+		if !strings.Contains(sClean, "NaN") && !strings.Contains(sClean, "Inf") {
+			return sClean
+		}
+	}
+
+	// 3️⃣ [최종 방어선] 에러가 나서 여기까지 흘러오면 무조건 문자열 처리!
+	b, _ := json.Marshal(s)
+	return string(b)
+}
+
 // 대용량 유입에도 메모리를 먹지 않는 완전한 스트리밍 변환기
 func convertHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -36,13 +72,12 @@ func convertHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 최대 100MB 업로드 허용
 	if err := r.ParseMultipartForm(100 << 20); err != nil {
 		http.Error(w, "업로드 파일이 너무 크거나 손상되었습니다.", http.StatusBadRequest)
 		return
 	}
 
-	file, header, err := r.FormFile("csvFile")
+	file, _, err := r.FormFile("csvFile") // 👈 사용하지 않는 header 식별자 생략 (_)
 	if err != nil {
 		http.Error(w, "파일을 읽는 중 오류가 발생했습니다.", http.StatusBadRequest)
 		return
@@ -51,7 +86,6 @@ func convertHandler(w http.ResponseWriter, r *http.Request) {
 
 	reader := csv.NewReader(file)
 
-	// 1. 헤더 한 줄 먼저 읽기
 	headers, err := reader.Read()
 	if err != nil {
 		http.Error(w, "헤더를 읽을 수 없습니다.", http.StatusBadRequest)
@@ -67,18 +101,10 @@ func convertHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 2. 다운로드 헤더 설정 (w.Write 전에 무조건 먼저 선언해야 함)
-	downloadName := header.Filename
-	if strings.HasSuffix(strings.ToLower(downloadName), ".csv") {
-		downloadName = downloadName[:len(downloadName)-4] + ".json"
-	} else {
-		downloadName += ".json"
-	}
-
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", downloadName))
+	// 👈 [개선] 파일명은 프론트엔드가 핸들링하므로, 백엔드는 표준 다운로드 헤더 스펙만 깔끔하게 유지합니다.
+	w.Header().Set("Content-Disposition", "attachment; filename=\"download.json\"")
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 
-	// 3. 브라우저로 직접 스트리밍 출력 시작 (Buffer 완전히 제거)
 	io.WriteString(w, "[\n")
 
 	firstRecord := true
@@ -90,7 +116,6 @@ func convertHandler(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		if err != nil {
-			// 이미 헤더가 전송된 이후이므로 http.Error 대신 에러 로그 처리나 스트림 중단만 가능
 			return
 		}
 
@@ -109,11 +134,13 @@ func convertHandler(w http.ResponseWriter, r *http.Request) {
 				value = record[i]
 			}
 
-			// 안전하고 정확한 표준 json 마샬러 활용 (escape 함수 필요 없음)
+			// 헤더(Key)는 무조건 문자열이므로 표준 마샬러 사용
 			keyJSON, _ := json.Marshal(headers[i])
-			valueJSON, _ := json.Marshal(value)
 
-			fmt.Fprintf(w, "        %s: %s", string(keyJSON), string(valueJSON))
+			// 데이터 세포별로 타입을 자동 추정하여 주입
+			valueJSON := inferValueJSON(value)
+
+			fmt.Fprintf(w, "        %s: %s", string(keyJSON), valueJSON)
 
 			if i < len(headers)-1 {
 				io.WriteString(w, ",\n")
@@ -124,9 +151,7 @@ func convertHandler(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, "    }")
 	}
 
-	// 데이터가 아예 없었던 경우 처리
 	if recordCount == 0 {
-		// 주의: 이미 200 OK 상태로 데이터가 일부 나갔을 수 있으므로 빈 배열로 마감
 		io.WriteString(w, "]\n")
 		return
 	}
