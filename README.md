@@ -11,7 +11,7 @@ The application runs entirely on the local machine, requires no installation, an
 ## Features
 
 * Single executable deployment
-* Embedded HTML, CSS and Icon assets using Go Embed
+* Embedded HTML, CSS, JavaScript and Icon assets using Go Embed
 * Local-only processing (no external network communication)
 * Automatic JSON file download
 * CSV header validation
@@ -22,6 +22,7 @@ The application runs entirely on the local machine, requires no installation, an
 * Automatic JSON type inference
 * Leading zero protection
 * Streaming CSV conversion for reduced memory usage
+* Korean / English UI localization
 * Chrome / Edge App Mode desktop UI
 * Toast notification based error handling
 * Automatic process cleanup on application exit
@@ -69,6 +70,12 @@ Lee,30,4200,false
         "age": 20,
         "salary": 3500.50,
         "active": true
+    },
+    {
+        "name": "Lee",
+        "age": 30,
+        "salary": 4200,
+        "active": false
     }
 ]
 ```
@@ -99,7 +106,7 @@ zipcode
 }
 ```
 
-Values with meaningful leading zeros remain strings.
+Values with meaningful leading zeros remain strings to prevent accidental corruption of postal codes, employee IDs, product codes, and similar identifiers.
 
 ---
 
@@ -109,8 +116,8 @@ Validation checks:
 
 * Empty headers
 * Duplicate headers
-* Invalid CSV structure
 * Missing header row
+* CSV parsing errors
 
 ### Invalid Example
 
@@ -140,7 +147,7 @@ Embedded HTTP Server
 Chrome / Edge App Mode
         │
         ▼
-HTML + CSS UI
+HTML + CSS + JavaScript UI
         │
         ▼
 Streaming CSV Parser
@@ -173,6 +180,7 @@ CsvToJson
 ├── converter.go
 ├── index.html
 ├── style.css
+├── app.js
 ├── app.ico
 └── README.md
 ```
@@ -192,7 +200,21 @@ go build -ldflags="-H windowsgui" -o CsvToJson.exe
 * Windows 10+
 * Go 1.24+ (development only)
 
-No installation required for end users.
+No installation is required for end users.
+
+---
+
+## Limitations
+
+Current version intentionally focuses on simplicity.
+
+Not currently supported:
+
+* XLSX input
+* Nested JSON generation
+* Schema mapping
+* Custom output formatting
+* Automatic delimiter detection
 
 ---
 
