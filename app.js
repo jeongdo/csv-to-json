@@ -17,6 +17,7 @@ const LANG = {
             DUPLICATE_HEADER: function (detail) {
                 return `중복 헤더 발견: ${detail}`;
             },
+            MIXED_DELIMITER_DETECTED: "CSV 구분자가 혼합되어 있어 처리할 수 없습니다.",
             CSV_PARSE_FAILED: "CSV 형식이 올바르지 않습니다.",
             UNKNOWN_ERROR: "알 수 없는 오류가 발생했습니다."
         }
@@ -40,6 +41,7 @@ const LANG = {
             DUPLICATE_HEADER: function (detail) {
                 return `Duplicate header: ${detail}`
             },
+            MIXED_DELIMITER_DETECTED: "The CSV file cannot be processed because it contains mixed delimiters.",
             CSV_PARSE_FAILED: "Invalid CSV format.",
             UNKNOWN_ERROR: "An unknown error occurred."
         }
@@ -106,6 +108,7 @@ function getErrorMessage(code, detail) {
     const errorEntry = TEXT.errors[code];
 
     if (!errorEntry) {
+        console.warn("Unknown error code:", code, detail);
         return TEXT.errors.UNKNOWN_ERROR;
     }
 
