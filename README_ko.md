@@ -249,6 +249,11 @@ go build -ldflags="-H windowsgui" -o CsvToJson.exe
 
 ## 라이선스
 
-MIT License
+본 프로젝트는 Apache License, Version 2.0에 따라 라이선스가 부여됩니다. 
+자세한 내용은 LICENSE 파일을 참조하십시오.
 
-자유롭게 사용, 수정 및 배포할 수 있습니다.
+---
+
+## Contributing
+
+본 프로젝트에 기여해주시는 모든 코드는 Apache 2.0 라이선스를 따릅니다. 기여를 해주시는 것은 해당 코드를 프로젝트의 관리하에 배포하는 것에 동의하는 것으로 간주합니다.

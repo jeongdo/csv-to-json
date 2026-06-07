@@ -247,6 +247,12 @@ Not supported:
 
 ## License
 
-MIT License
+This project is licensed under the Apache License, Version 2.0.  
+See the `LICENSE` file for details.
 
-Feel free to use, modify, and distribute.
+---
+
+## Contributing
+
+All contributions to this project are subject to the Apache License, Version 2.0.  
+By submitting a contribution, you agree that your code will be distributed under the project's license and managed by the original author.
