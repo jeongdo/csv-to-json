@@ -1,10 +1,13 @@
 # csv-to-json
+[🚀 Download Latest CsvToJson.exe](https://github.com/jeongdo/csv-to-json/releases/latest)
 
-Go로 개발한 경량 데스크톱 CSV → JSON 변환기
+Go로 개발한 경량 데스크톱 CSV → JSON 변환기.
 
-csv-to-json은 CSV 파일을 JSON 형식으로 변환하는 포터블(Portable) 데스크톱 유틸리티입니다.
+csv-to-json은 간단한 그래픽 인터페이스를 통해 CSV 파일을 JSON 형식으로 변환하는 포터블(Portable) 데스크톱 유틸리티입니다.
 
-간단한 그래픽 UI를 제공하며, 별도 설치 없이 실행 가능하고 외부 의존성이 없습니다.
+이 애플리케이션은 로컬 환경에서만 실행되며, 설치가 필요 없고 외부 종속성도 없습니다.
+
+실행 파일을 다운로드하여 실행하면 CSV 파일을 JSON으로 즉시 변환할 수 있습니다.
 
 ---
 
