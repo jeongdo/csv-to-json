@@ -18,7 +18,14 @@ const LANG = {
             HEADER_READ_FAILED: "헤더를 읽을 수 없습니다.",
             EMPTY_HEADER: "빈 헤더가 존재합니다.",
             DUPLICATE_HEADER: function (detail) {
-                return `중복 헤더 발견: ${detail}`;
+                const parts = detail.split(',');
+                const firstName = parts[0];
+                const otherCount = parseInt(parts[1], 10);
+                if (otherCount > 0) {
+                    return `중복 헤더 발견: ${firstName} 외 ${otherCount} 건`;
+                } else {
+                    return `중복 헤더 발견: ${firstName}`;
+                }
             },
             MIXED_DELIMITER_DETECTED: "CSV 구분자가 혼합되어 있어 처리할 수 없습니다.",
             CSV_PARSE_FAILED: "CSV 형식이 올바르지 않습니다.",
@@ -46,6 +53,16 @@ const LANG = {
             EMPTY_HEADER: "Empty header detected.",
             DUPLICATE_HEADER: function (detail) {
                 return `Duplicate header: ${detail}`
+            },
+            DUPLICATE_HEADER: function (detail) {
+                const parts = detail.split(',');
+                const firstName = parts[0];
+                const otherCount = parseInt(parts[1], 10);
+                if (otherCount > 0) {
+                    return `Duplicate header: ${firstName} and ${otherCount} others`;
+                } else {
+                    return `Duplicate header: ${firstName}`;
+                }
             },
             MIXED_DELIMITER_DETECTED: "The CSV file cannot be processed because it contains mixed delimiters.",
             CSV_PARSE_FAILED: "Invalid CSV format.",

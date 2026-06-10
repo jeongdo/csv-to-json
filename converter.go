@@ -41,19 +41,36 @@ func removeBOM(s string) string {
 }
 
 func validateHeaders(headers []string) error {
-	exists := make(map[string]bool)
-	for _, h := range headers {
+	seen := make(map[string]int)            // 헤더명 -> 첫 등장 인덱스
+	duplicateNames := make(map[string]bool) // 중복된 헤더명 수집
+
+	for i, h := range headers {
 		h = strings.TrimSpace(h)
 		if h == "" {
 			return fmt.Errorf("EMPTY_HEADER")
 		}
-		if exists[h] {
-			return fmt.Errorf(
-				"DUPLICATE_HEADER:%s",
-				h,
-			)
+		if idx, exists := seen[h]; exists {
+			// 중복 발생: 해당 헤더명을 기록
+			duplicateNames[h] = true
+			// 첫 번째 중복 위치도 알고 있지만, 여기선 이름만 필요
+			_ = idx
+		} else {
+			seen[h] = i
 		}
-		exists[h] = true
+	}
+
+	if len(duplicateNames) > 0 {
+		// 첫 번째 중복 헤더명 찾기 (순서대로)
+		var firstDuplicate string
+		for _, h := range headers {
+			h = strings.TrimSpace(h)
+			if duplicateNames[h] {
+				firstDuplicate = h
+				break
+			}
+		}
+		otherCount := len(duplicateNames) - 1
+		return fmt.Errorf("DUPLICATE_HEADER:%s,%d", firstDuplicate, otherCount)
 	}
 	return nil
 }
