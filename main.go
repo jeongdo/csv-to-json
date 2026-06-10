@@ -1,9 +1,12 @@
 // main.go
+
 package main
 
 import (
 	"context"
+	"crypto/rand"
 	_ "embed"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"net"
@@ -30,57 +33,69 @@ var iconBytes []byte
 
 var server *http.Server
 
+// 앱 기동 시 랜덤 생성 — 프로세스 재시작 전까지 동일한 값 유지
+var shutdownToken string
+
+func generateShutdownToken() string {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		// fallback: 시간 기반 난수 (rand.Read 실패는 사실상 없음)
+		return fmt.Sprintf("%d", time.Now().UnixNano())
+	}
+	return hex.EncodeToString(b)
+}
+
 func killExistingProcesses() {
 	currentPID := os.Getpid()
 
 	if runtime.GOOS == "windows" {
-		// 실행 파일의 이름을 동적으로 가져옴 (예: C:\Tool\CsvToJson.exe -> CsvToJson.exe)
 		exePath, err := os.Executable()
 		if err != nil {
 			return
 		}
 		exeName := filepath.Base(exePath)
-
 		cmd := exec.Command(
 			"taskkill",
 			"/F",
 			"/IM",
-			exeName, // 하드코딩 대신 동적 변수 사용
+			exeName,
 			"/FI",
 			fmt.Sprintf("PID ne %d", currentPID),
 		)
-
 		cmd.SysProcAttr = &syscall.SysProcAttr{
 			HideWindow: true,
 		}
-
 		cmd.Run()
-		// 200ms 정도는 여유를 주는 게 시스템상 안정적입니다.
 		time.Sleep(200 * time.Millisecond)
 	}
 }
 
 func shutdownHandler(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
+	// [SECURITY] 토큰 검증 — 없거나 틀리면 403
+	if r.URL.Query().Get("token") != shutdownToken {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
 
+	w.WriteHeader(http.StatusOK)
 	go func() {
 		time.Sleep(500 * time.Millisecond)
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
-
 		server.Shutdown(ctx)
 		os.Exit(0)
 	}()
 }
 
 func main() {
+	shutdownToken = generateShutdownToken()
+
 	go killExistingProcesses()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", indexHandler)
 	mux.HandleFunc("/convert", convertHandler)
 	mux.HandleFunc("/shutdown", shutdownHandler)
-
 	mux.HandleFunc("/app.js", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set(
 			"Content-Type",
@@ -88,12 +103,10 @@ func main() {
 		)
 		io.WriteString(w, jsContent)
 	})
-
 	mux.HandleFunc("/style.css", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/css; charset=utf-8")
 		io.WriteString(w, cssContent)
 	})
-
 	mux.HandleFunc("/app.ico", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/x-icon")
 		w.Write(iconBytes)
@@ -103,15 +116,15 @@ func main() {
 	if err != nil {
 		return
 	}
-
 	port := listener.Addr().(*net.TCPAddr).Port
-	url := fmt.Sprintf("http://127.0.0.1:%d", port)
+
+	// [SECURITY] 토큰을 URL에 포함시켜 브라우저로 전달
+	url := fmt.Sprintf("http://127.0.0.1:%d?token=%s", port, shutdownToken)
 
 	server = &http.Server{
 		Handler: mux,
 	}
 
-	// 분리된 browser.go의 함수를 호출하여 메인 루프를 간결하게 유지
 	go func() {
 		time.Sleep(50 * time.Millisecond)
 		launchAppWindow(url, 520, 450)
@@ -122,7 +135,6 @@ func main() {
 	}
 }
 
-// 💡 [개선] html/template 오버헤드를 제거하고 완전한 static 스트링 구조로 직통 서빙
 func indexHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	io.WriteString(w, htmlContent)

@@ -1,4 +1,5 @@
 // converter.go
+
 package main
 
 import (
@@ -26,9 +27,7 @@ func writeError(
 		"Content-Type",
 		"application/json; charset=utf-8",
 	)
-
 	w.WriteHeader(status)
-
 	_ = json.NewEncoder(w).Encode(
 		ErrorResponse{
 			Code:   code,
@@ -42,15 +41,12 @@ func removeBOM(s string) string {
 }
 
 func validateHeaders(headers []string) error {
-
 	exists := make(map[string]bool)
-
 	for _, h := range headers {
 		h = strings.TrimSpace(h)
 		if h == "" {
 			return fmt.Errorf("EMPTY_HEADER")
 		}
-
 		if exists[h] {
 			return fmt.Errorf(
 				"DUPLICATE_HEADER:%s",
@@ -76,24 +72,25 @@ func inferValueJSON(s string) string {
 		return sClean
 	}
 
-	// 1️⃣ "010", "00234" 등 앞자리 0 전면 방어
+	// [FIX 3] 앞자리 0 방어 — json.Marshal 대상을 s 에서 sClean 으로 통일
+	// "010", "00234" 등 앞자리 0 전면 방어
 	if len(sClean) > 1 && sClean[0] == '0' && sClean[1] != '.' {
-		b, _ := json.Marshal(s) // 숫자로 바꾸지 않고 곧바로 "010" 문자열 처리
+		b, _ := json.Marshal(sClean)
 		return string(b)
 	}
 
-	// 2️⃣ 변환 시도하다가 에러 나면?
 	if _, err := strconv.ParseInt(sClean, 10, 64); err == nil {
 		return sClean
 	}
+
 	if _, err := strconv.ParseFloat(sClean, 64); err == nil {
 		if !strings.Contains(sClean, "NaN") && !strings.Contains(sClean, "Inf") {
 			return sClean
 		}
 	}
 
-	// 3️⃣ [최종 방어선] 에러가 나서 여기까지 흘러오면 무조건 문자열 처리!
-	b, _ := json.Marshal(s)
+	// [FIX 3] 최종 방어선도 sClean 으로 통일 (원본 s 의 앞뒤 공백이 JSON에 포함되던 버그 수정)
+	b, _ := json.Marshal(sClean)
 	return string(b)
 }
 
@@ -119,7 +116,7 @@ func convertHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	file, _, err := r.FormFile("csvFile") // 👈 사용하지 않는 header 식별자 생략 (_)
+	file, _, err := r.FormFile("csvFile")
 	if err != nil {
 		writeError(
 			w,
@@ -132,7 +129,6 @@ func convertHandler(w http.ResponseWriter, r *http.Request) {
 	defer file.Close()
 
 	delim, mixed := detectDelimiterAdvanced(file)
-
 	if mixed {
 		writeError(
 			w,
@@ -168,7 +164,6 @@ func convertHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err := validateHeaders(headers); err != nil {
 		msg := err.Error()
-
 		if msg == "EMPTY_HEADER" {
 			writeError(
 				w,
@@ -178,7 +173,6 @@ func convertHandler(w http.ResponseWriter, r *http.Request) {
 			)
 			return
 		}
-
 		if strings.HasPrefix(
 			msg,
 			"DUPLICATE_HEADER:",
@@ -196,7 +190,6 @@ func convertHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 👈 [개선] 파일명은 프론트엔드가 핸들링하므로, 백엔드는 표준 다운로드 헤더 스펙만 깔끔하게 유지합니다.
 	w.Header().Set("Content-Disposition", "attachment; filename=\"download.json\"")
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 
@@ -221,7 +214,7 @@ func convertHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		firstRecord = false
 
-		io.WriteString(w, "    {\n")
+		io.WriteString(w, "  {\n")
 
 		for i := 0; i < len(headers); i++ {
 			value := ""
@@ -229,13 +222,10 @@ func convertHandler(w http.ResponseWriter, r *http.Request) {
 				value = record[i]
 			}
 
-			// 헤더(Key)는 무조건 문자열이므로 표준 마샬러 사용
 			keyJSON, _ := json.Marshal(headers[i])
-
-			// 데이터 세포별로 타입을 자동 추정하여 주입
 			valueJSON := inferValueJSON(value)
 
-			fmt.Fprintf(w, "        %s: %s", string(keyJSON), valueJSON)
+			fmt.Fprintf(w, "    %s: %s", string(keyJSON), valueJSON)
 
 			if i < len(headers)-1 {
 				io.WriteString(w, ",\n")
@@ -243,7 +233,8 @@ func convertHandler(w http.ResponseWriter, r *http.Request) {
 				io.WriteString(w, "\n")
 			}
 		}
-		io.WriteString(w, "    }")
+
+		io.WriteString(w, "  }")
 	}
 
 	if recordCount == 0 {
@@ -255,48 +246,52 @@ func convertHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func detectDelimiterAdvanced(r io.Reader) (rune, bool) {
-
 	buf := make([]byte, 512*1024)
 	n, _ := r.Read(buf)
 	sample := string(buf[:n])
 
 	lines := strings.Split(sample, "\n")
 
-	// 끊긴 마지막 줄을 검사하면 칼럼 갯수가 모자라 무조건 에러가 나므로, 마지막 줄은 검사 대상에서 제외합니다.
+	// 끊긴 마지막 줄 제외
 	if len(lines) > 1 && n == len(buf) {
 		lines = lines[:len(lines)-1]
 	}
 
+	// 헤더 줄이 비어있으면 오류
+	if len(lines) == 0 {
+		return ',', true
+	}
+
 	candidates := []rune{',', '|', ';', '\t'}
 
-	// 1. 텍스트 안에 실제로 존재하는 구분자만 후보로 추려냅니다.
+	// [FIX 1] sample 전체가 아닌 lines[0](헤더 줄)에서만 후보 추림
+	// 데이터 셀 안에 |, ;, \t 가 포함되어도 오탐하지 않음
+	headerLine := lines[0]
 	var presentCandidates []rune
 	for _, d := range candidates {
-		if strings.ContainsRune(sample, d) {
+		if strings.ContainsRune(headerLine, d) {
 			presentCandidates = append(presentCandidates, d)
 		}
 	}
 
-	// 2. 어떤 구분자도 없다면 잘못된 파일로 간주하고 에러 반환
+	// 어떤 구분자도 없다면 잘못된 파일
 	if len(presentCandidates) == 0 {
 		return ',', true
 	}
 
-	// 3. 존재하는 구분자들만 대상으로 칼럼 일관성 검사
+	// [FIX 2] lines 를 줄별로 독립 파싱하지 않고 전체를 하나의 csv.Reader 로 파싱
+	// → 따옴표 안 줄바꿈/쉼표가 있는 RFC 4180 파일도 정확히 칼럼 수 검증
 	var validDelims []rune
 	for _, d := range presentCandidates {
-		// 💡 targetLines 대신 원본 lines를 그대로 전달합니다.
 		if isValidDelimiter(lines, d) {
 			validDelims = append(validDelims, d)
 		}
 	}
 
-	// 존재하는 구분자들 중 구조가 맞는 게 없으면 파일 손상
 	if len(validDelims) == 0 {
 		return ',', true
 	}
 
-	// 통과한 구분자가 여러 개면 진짜 혼합 에러
 	if len(validDelims) > 1 {
 		return ',', true
 	}
@@ -304,33 +299,31 @@ func detectDelimiterAdvanced(r io.Reader) (rune, bool) {
 	return validDelims[0], false
 }
 
+// [FIX 2] lines 를 다시 합쳐서 단일 csv.Reader 로 전체 파싱
+// 줄별 독립 파싱 시 따옴표 내 줄바꿈을 칼럼 수 불일치로 오판하던 버그 수정
 func isValidDelimiter(lines []string, delim rune) bool {
+	joined := strings.Join(lines, "\n")
+	r := csv.NewReader(strings.NewReader(joined))
+	r.Comma = delim
+	r.FieldsPerRecord = 0 // 첫 레코드 칼럼 수를 기준으로 자동 설정
+	r.LazyQuotes = true   // 따옴표 파싱 관대하게
 
 	var baseLen int
 	found := false
 
-	for _, line := range lines {
-
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-
-		r := csv.NewReader(strings.NewReader(line))
-		r.Comma = delim
-
+	for {
 		rec, err := r.Read()
+		if err == io.EOF {
+			break
+		}
 		if err != nil {
 			return false
 		}
-
 		if !found {
 			baseLen = len(rec)
 			found = true
 			continue
 		}
-
-		// 구조 깨지면 즉시 탈락
 		if len(rec) != baseLen {
 			return false
 		}

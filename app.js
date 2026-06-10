@@ -5,8 +5,11 @@ const LANG = {
         notice2: "※ 첫 행의 칼럼명을 기반으로 JSON의 key 값이 자동으로 생성됩니다.",
         upload: "업로드 및 JSON 다운로드",
         converting: "변환 중...",
-        success: "변환이 완료되었습니다.",
+        success: "✓ 다운로드 완료",
         error: "변환 중 오류가 발생했습니다.",
+        noFile: "파일을 먼저 선택해 주세요.",
+        dropText: "CSV 파일을 여기에 드래그하거나",
+        noFileSelected: "선택된 파일 없음",
 
         errors: {
             INVALID_METHOD: "잘못된 접근입니다.",
@@ -29,8 +32,11 @@ const LANG = {
         notice2: "JSON keys are generated automatically from the header row.",
         upload: "Upload and Download JSON",
         converting: "Converting...",
-        success: "Conversion completed.",
+        success: "✓ Download complete",
         error: "An error occurred during conversion.",
+        noFile: "Please select a file first.",
+        dropText: "Drag & Drop CSV File Here",
+        noFileSelected: "No file selected",
 
         errors: {
             INVALID_METHOD: "Invalid request.",
@@ -53,13 +59,9 @@ const TEXT = browserLang.startsWith("ko") ? LANG.ko : LANG.en;
 
 function applyLanguage() {
     document.title = TEXT.title;
-
     document.getElementById("title").innerText = TEXT.title;
-
     document.getElementById("notice1").innerText = TEXT.notice1;
-
     document.getElementById("notice2").innerText = TEXT.notice2;
-
     document.getElementById("convertButton").innerText = TEXT.upload;
 }
 
@@ -80,9 +82,7 @@ window.addEventListener(
 let toastTimer = null;
 
 function showToast(message, type) {
-
     const toast = document.getElementById("toast");
-
     toast.textContent = message;
     toast.className = type + " show";
 
@@ -92,7 +92,6 @@ function showToast(message, type) {
 
     toast.onclick = function () {
         toast.classList.remove("show");
-
         if (toastTimer) {
             clearTimeout(toastTimer);
         }
@@ -104,7 +103,6 @@ function showToast(message, type) {
 }
 
 function getErrorMessage(code, detail) {
-
     const errorEntry = TEXT.errors[code];
 
     if (!errorEntry) {
@@ -119,38 +117,48 @@ function getErrorMessage(code, detail) {
     return errorEntry;
 }
 
+// [FIX 1] 파일 상태를 별도 변수로 관리 — fileInput.files 직접 의존 제거
+let selectedFile = null;
+
+function setSelectedFile(file) {
+    selectedFile = file;
+    const selectedFileName = document.getElementById("selectedFileName");
+    if (file) {
+        selectedFileName.innerText = file.name;
+    } else {
+        selectedFileName.innerText = TEXT.noFileSelected;
+    }
+}
+
 document
     .getElementById("convertForm")
     .addEventListener("submit", async function (e) {
 
         e.preventDefault();
 
-        const button = document.getElementById("convertButton");
+        // [FIX 1] selectedFile 변수로 판단
+        if (!selectedFile) {
+            showToast(TEXT.noFile, "error");
+            return;
+        }
 
+        const button = document.getElementById("convertButton");
         button.disabled = true;
         button.innerText = TEXT.converting;
 
-        const fileInput = this.querySelector('input[name="csvFile"]');
+        const originalName = selectedFile.name;
+        const lastDot = originalName.lastIndexOf(".");
+        const filename =
+            (lastDot !== -1
+                ? originalName.substring(0, lastDot)
+                : originalName)
+            + ".json";
 
-        const file = fileInput.files[0];
-
-        let filename = "result.json";
-
-        if (file) {
-            const originalName = file.name;
-            const lastDot = originalName.lastIndexOf(".");
-
-            filename =
-                (lastDot !== -1
-                    ? originalName.substring(0, lastDot)
-                    : originalName)
-                + ".json";
-        }
-
-        const formData = new FormData(this);
+        // [FIX 1] FormData를 직접 구성해서 selectedFile을 명시적으로 첨부
+        const formData = new FormData();
+        formData.append("csvFile", selectedFile);
 
         try {
-
             const response = await fetch(
                 "/convert",
                 {
@@ -162,13 +170,9 @@ document
             if (!response.ok) {
                 const errorData = await response.json();
                 showToast(
-                    getErrorMessage(
-                        errorData.code,
-                        errorData.detail
-                    ),
+                    getErrorMessage(errorData.code, errorData.detail),
                     "error"
                 );
-
                 button.disabled = false;
                 button.innerText = TEXT.upload;
                 return;
@@ -176,22 +180,38 @@ document
 
             const blob = await response.blob();
 
-            const url = window.URL.createObjectURL(blob);
-
-            const a = document.createElement("a");
-
-            a.href = url;
-            a.download = filename;
-
-            document.body.appendChild(a);
-
-            a.click();
-
-            a.remove();
-
-            window.URL.revokeObjectURL(url);
-
-            showToast(TEXT.success, "success");
+            if (window.showSaveFilePicker) {
+                // [FIX 2] 저장 대화상자를 직접 띄워서 완료 시점을 정확히 감지
+                try {
+                    const fileHandle = await window.showSaveFilePicker({
+                        suggestedName: filename,
+                        types: [{
+                            description: "JSON File",
+                            accept: { "application/json": [".json"] }
+                        }]
+                    });
+                    const writable = await fileHandle.createWritable();
+                    await writable.write(blob);
+                    await writable.close();
+                    showToast(TEXT.success, "success");
+                } catch (saveErr) {
+                    // 사용자가 저장 대화상자를 취소한 경우 — 에러 아님, 조용히 복귀
+                    if (saveErr.name !== "AbortError") {
+                        showToast(TEXT.error, "error");
+                    }
+                }
+            } else {
+                // showSaveFilePicker 미지원 브라우저 fallback
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(url);
+                showToast(TEXT.success, "success");
+            }
 
         } catch (err) {
             showToast(TEXT.error, "error");
@@ -201,17 +221,17 @@ document
         button.innerText = TEXT.upload;
     });
 
+const _shutdownToken = new URLSearchParams(window.location.search).get("token") ?? "";
+
 window.addEventListener(
     "beforeunload",
     function () {
-        navigator.sendBeacon("/shutdown");
+        navigator.sendBeacon("/shutdown?token=" + _shutdownToken);
     }
 );
 
-
 const dropZone = document.getElementById("dropZone");
 const fileInput = document.getElementById("csvFile");
-const selectedFileName = document.getElementById("selectedFileName");
 
 dropZone.addEventListener(
     "dragover",
@@ -231,19 +251,13 @@ dropZone.addEventListener(
 dropZone.addEventListener(
     "drop",
     function (e) {
-
         e.preventDefault();
-
         dropZone.classList.remove("drag-over");
 
         const files = e.dataTransfer.files;
-
         if (files.length > 0) {
-
-            fileInput.files = files;
-
-            selectedFileName.innerText =
-                files[0].name;
+            // [FIX 1] selectedFile 변수에 저장
+            setSelectedFile(files[0]);
         }
     }
 );
@@ -251,11 +265,14 @@ dropZone.addEventListener(
 fileInput.addEventListener(
     "change",
     function () {
-
         if (this.files.length > 0) {
-
-            selectedFileName.innerText =
-                this.files[0].name;
+            // [FIX 1] 파일 선택 시 selectedFile 업데이트
+            setSelectedFile(this.files[0]);
+        } else {
+            // [FIX 1] 선택 취소 시 명시적으로 null 처리
+            setSelectedFile(null);
         }
+        // input 값을 리셋해도 selectedFile은 유지되므로 다음 드랍과 충돌 없음
+        this.value = "";
     }
 );
