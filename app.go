@@ -87,15 +87,15 @@ func (a *App) ConvertInput(inputPath string, settings DesktopConvertSettings) (*
 	var stats ConvertStats
 	var outputBytes int64
 	if summary.Kind == "json" {
-		stats, outputBytes, err = convertJSONFilePath(inputPath, outputPath, settings.OutputDelimiter, func(progress Progress) {
+		stats, outputBytes, err = convertJSONFilePathMapped(inputPath, outputPath, settings.OutputDelimiter, settings.Mappings, func(progress Progress) {
 			wailsruntime.EventsEmit(a.ctx, "conversion:progress", progress)
 		})
 	} else if summary.Kind == "xlsx" {
-		stats, outputBytes, err = convertXLSXFilePath(inputPath, outputPath, ConvertSettings{InferTypes: settings.InferTypes, EmptyAsNull: settings.EmptyAsNull}, func(progress Progress) {
+		stats, outputBytes, err = convertXLSXFilePathMapped(inputPath, outputPath, ConvertSettings{InferTypes: settings.InferTypes, EmptyAsNull: settings.EmptyAsNull}, settings.Mappings, func(progress Progress) {
 			wailsruntime.EventsEmit(a.ctx, "conversion:progress", progress)
 		})
 	} else {
-		stats, outputBytes, err = convertFilePath(inputPath, outputPath, ConvertSettings{InferTypes: settings.InferTypes, EmptyAsNull: settings.EmptyAsNull}, func(progress Progress) {
+		stats, outputBytes, err = convertCSVFilePathMapped(inputPath, outputPath, ConvertSettings{InferTypes: settings.InferTypes, EmptyAsNull: settings.EmptyAsNull}, settings.Mappings, func(progress Progress) {
 			wailsruntime.EventsEmit(a.ctx, "conversion:progress", progress)
 		})
 	}
@@ -106,6 +106,7 @@ func (a *App) ConvertInput(inputPath string, settings DesktopConvertSettings) (*
 	return &ConversionResult{OutputPath: outputPath, Rows: stats.Rows, Columns: stats.Columns, Bytes: outputBytes, DurationMS: time.Since(started).Milliseconds()}, nil
 }
 
+// Backward-compatible bindings retained for existing callers.
 func (a *App) SelectCSV() (*FileSummary, error) {
 	path, err := wailsruntime.OpenFileDialog(a.ctx, wailsruntime.OpenDialogOptions{
 		Title:   "Select CSV / TSV File",

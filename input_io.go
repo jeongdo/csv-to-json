@@ -22,9 +22,10 @@ type InputSummary struct {
 }
 
 type DesktopConvertSettings struct {
-	InferTypes      bool   `json:"inferTypes"`
-	EmptyAsNull     bool   `json:"emptyAsNull"`
-	OutputDelimiter string `json:"outputDelimiter"`
+	InferTypes      bool            `json:"inferTypes"`
+	EmptyAsNull     bool            `json:"emptyAsNull"`
+	OutputDelimiter string          `json:"outputDelimiter"`
+	Mappings        []ColumnMapping `json:"mappings"`
 }
 
 func inspectInput(path string) (*InputSummary, error) {
