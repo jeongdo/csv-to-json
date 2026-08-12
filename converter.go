@@ -1,350 +1,364 @@
-// converter.go
-
 package main
 
 import (
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 )
+
+const delimiterProbeRecords = 32
 
 type ErrorResponse struct {
 	Code   string `json:"code"`
 	Detail string `json:"detail,omitempty"`
 }
 
-func writeError(
-	w http.ResponseWriter,
-	status int,
-	code string,
-	detail string,
-) {
-	w.Header().Set(
-		"Content-Type",
-		"application/json; charset=utf-8",
-	)
+type ConvertStats struct {
+	Rows      int   `json:"rows"`
+	Columns   int   `json:"columns"`
+	Delimiter rune  `json:"-"`
+	Bytes     int64 `json:"bytes,omitempty"`
+}
+
+func writeError(w http.ResponseWriter, status int, code, detail string) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(
-		ErrorResponse{
-			Code:   code,
-			Detail: detail,
-		},
-	)
+	_ = json.NewEncoder(w).Encode(ErrorResponse{Code: code, Detail: detail})
 }
 
 func removeBOM(s string) string {
 	return strings.TrimPrefix(s, "\uFEFF")
 }
 
-func validateHeaders(headers []string) error {
-	seen := make(map[string]int)            // 헤더명 -> 첫 등장 인덱스
-	duplicateNames := make(map[string]bool) // 중복된 헤더명 수집
+func normaliseHeaders(headers []string) ([]string, error) {
+	cleaned := make([]string, len(headers))
+	seen := make(map[string]struct{}, len(headers))
+	duplicates := make([]string, 0)
+	duplicateSeen := make(map[string]struct{})
 
-	for i, h := range headers {
-		h = strings.TrimSpace(h)
+	for i, raw := range headers {
+		h := strings.TrimSpace(removeBOM(raw))
 		if h == "" {
-			return fmt.Errorf("EMPTY_HEADER")
+			return nil, errors.New("EMPTY_HEADER")
 		}
-		if idx, exists := seen[h]; exists {
-			// 중복 발생: 해당 헤더명을 기록
-			duplicateNames[h] = true
-			// 첫 번째 중복 위치도 알고 있지만, 여기선 이름만 필요
-			_ = idx
-		} else {
-			seen[h] = i
+		cleaned[i] = h
+		if _, ok := seen[h]; ok {
+			if _, recorded := duplicateSeen[h]; !recorded {
+				duplicates = append(duplicates, h)
+				duplicateSeen[h] = struct{}{}
+			}
+			continue
 		}
+		seen[h] = struct{}{}
 	}
 
-	if len(duplicateNames) > 0 {
-		// 첫 번째 중복 헤더명 찾기 (순서대로)
-		var firstDuplicate string
-		for _, h := range headers {
-			h = strings.TrimSpace(h)
-			if duplicateNames[h] {
-				firstDuplicate = h
-				break
-			}
-		}
-		otherCount := len(duplicateNames) - 1
-		return fmt.Errorf("DUPLICATE_HEADER:%s,%d", firstDuplicate, otherCount)
+	if len(duplicates) > 0 {
+		return nil, fmt.Errorf("DUPLICATE_HEADER:%s,%d", duplicates[0], len(duplicates)-1)
 	}
-	return nil
+	return cleaned, nil
 }
 
-// 💡 각 세포(Cell)의 문자를 분석하여 알맞은 JSON 데이터 타입 표현식으로 변환
-func inferValueJSON(s string) string {
-	sClean := strings.TrimSpace(s)
+func validateHeaders(headers []string) error {
+	_, err := normaliseHeaders(headers)
+	return err
+}
 
-	// 1. 빈 값은 그냥 빈 문자열로 처리
-	if sClean == "" {
-		return `""`
+func hasProtectedLeadingZero(s string) bool {
+	if strings.HasPrefix(s, "-") || strings.HasPrefix(s, "+") {
+		s = s[1:]
 	}
+	return len(s) > 1 && s[0] == '0' && s[1] != '.'
+}
 
-	// 2. 불리언(Boolean) 판별
-	if sClean == "true" || sClean == "false" {
-		return sClean
+func inferValue(s string) any {
+	trimmed := strings.TrimSpace(s)
+	if trimmed == "" {
+		// Preserve explicitly quoted/padded string data instead of silently trimming it.
+		if s != "" {
+			return s
+		}
+		return ""
 	}
-
-	// [FIX 3] 앞자리 0 방어 — json.Marshal 대상을 s 에서 sClean 으로 통일
-	// "010", "00234" 등 앞자리 0 전면 방어
-	if len(sClean) > 1 && sClean[0] == '0' && sClean[1] != '.' {
-		b, _ := json.Marshal(sClean)
-		return string(b)
+	if trimmed == "true" {
+		return true
 	}
-
-	if _, err := strconv.ParseInt(sClean, 10, 64); err == nil {
-		return sClean
+	if trimmed == "false" {
+		return false
 	}
-
-	if _, err := strconv.ParseFloat(sClean, 64); err == nil {
-		if !strings.Contains(sClean, "NaN") && !strings.Contains(sClean, "Inf") {
-			return sClean
+	if hasProtectedLeadingZero(trimmed) {
+		return s
+	}
+	if i, err := strconv.ParseInt(trimmed, 10, 64); err == nil {
+		return i
+	}
+	if f, err := strconv.ParseFloat(trimmed, 64); err == nil {
+		if !strings.ContainsAny(trimmed, "Nn") &&
+			!strings.Contains(trimmed, "Inf") &&
+			!strings.Contains(trimmed, "inf") {
+			return f
 		}
 	}
+	return s
+}
 
-	// [FIX 3] 최종 방어선도 sClean 으로 통일 (원본 s 의 앞뒤 공백이 JSON에 포함되던 버그 수정)
-	b, _ := json.Marshal(sClean)
+// inferValueJSON remains as a narrow compatibility helper for existing callers/tests.
+func inferValueJSON(s string) string {
+	b, err := json.Marshal(inferValue(s))
+	if err != nil {
+		return `""`
+	}
 	return string(b)
 }
 
-// 대용량 유입에도 메모리를 먹지 않는 완전한 스트리밍 변환기
-func convertHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeError(
-			w,
-			http.StatusMethodNotAllowed,
-			"INVALID_METHOD",
-			"",
-		)
-		return
-	}
-
-	if err := r.ParseMultipartForm(100 << 20); err != nil {
-		writeError(
-			w,
-			http.StatusBadRequest,
-			"UPLOAD_FAILED",
-			"",
-		)
-		return
-	}
-
-	file, _, err := r.FormFile("csvFile")
+func writeJSONValue(w io.Writer, value any) error {
+	b, err := json.Marshal(value)
 	if err != nil {
-		writeError(
-			w,
-			http.StatusBadRequest,
-			"FILE_READ_FAILED",
-			"",
-		)
-		return
+		return err
 	}
-	defer file.Close()
+	_, err = w.Write(b)
+	return err
+}
 
-	delim, mixed := detectDelimiterAdvanced(file)
-	if mixed {
-		writeError(
-			w,
-			http.StatusBadRequest,
-			"MIXED_DELIMITER_DETECTED",
-			"",
-		)
-		return
-	}
-
-	// 안전하게 rewind (Seek 가능한 경우만)
-	if seeker, ok := file.(io.Seeker); ok {
-		_, _ = seeker.Seek(0, 0)
-	}
-
-	reader := csv.NewReader(file)
+func convertCSV(r io.Reader, w io.Writer, delim rune) (ConvertStats, error) {
+	reader := csv.NewReader(r)
 	reader.Comma = delim
+	reader.FieldsPerRecord = 0
 
-	headers, err := reader.Read()
+	rawHeaders, err := reader.Read()
 	if err != nil {
-		writeError(
-			w,
-			http.StatusBadRequest,
-			"HEADER_READ_FAILED",
-			"",
-		)
-		return
+		return ConvertStats{}, fmt.Errorf("HEADER_READ_FAILED: %w", err)
+	}
+	headers, err := normaliseHeaders(rawHeaders)
+	if err != nil {
+		return ConvertStats{}, err
 	}
 
-	for i := range headers {
-		headers[i] = removeBOM(headers[i])
+	stats := ConvertStats{Columns: len(headers), Delimiter: delim}
+	if _, err = io.WriteString(w, "[\n"); err != nil {
+		return stats, err
 	}
-
-	if err := validateHeaders(headers); err != nil {
-		msg := err.Error()
-		if msg == "EMPTY_HEADER" {
-			writeError(
-				w,
-				http.StatusBadRequest,
-				"EMPTY_HEADER",
-				"",
-			)
-			return
-		}
-		if strings.HasPrefix(
-			msg,
-			"DUPLICATE_HEADER:",
-		) {
-			writeError(
-				w,
-				http.StatusBadRequest,
-				"DUPLICATE_HEADER",
-				strings.TrimPrefix(
-					msg,
-					"DUPLICATE_HEADER:",
-				),
-			)
-			return
-		}
-	}
-
-	w.Header().Set("Content-Disposition", "attachment; filename=\"download.json\"")
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-
-	io.WriteString(w, "[\n")
 
 	firstRecord := true
-	recordCount := 0
-
 	for {
-		record, err := reader.Read()
-		if err == io.EOF {
+		record, readErr := reader.Read()
+		if readErr == io.EOF {
 			break
 		}
-		if err != nil {
-			return
+		if readErr != nil {
+			return stats, fmt.Errorf("CSV_PARSE_FAILED: %w", readErr)
 		}
-
-		recordCount++
 
 		if !firstRecord {
-			io.WriteString(w, ",\n")
+			if _, err = io.WriteString(w, ",\n"); err != nil {
+				return stats, err
+			}
 		}
 		firstRecord = false
+		if _, err = io.WriteString(w, "  {\n"); err != nil {
+			return stats, err
+		}
 
-		io.WriteString(w, "  {\n")
-
-		for i := 0; i < len(headers); i++ {
-			value := ""
+		for i, header := range headers {
+			if i > 0 {
+				if _, err = io.WriteString(w, ",\n"); err != nil {
+					return stats, err
+				}
+			}
+			key, _ := json.Marshal(header)
+			if _, err = fmt.Fprintf(w, "    %s: ", key); err != nil {
+				return stats, err
+			}
+t		var raw string
 			if i < len(record) {
-				value = record[i]
+				raw = record[i]
 			}
-
-			keyJSON, _ := json.Marshal(headers[i])
-			valueJSON := inferValueJSON(value)
-
-			fmt.Fprintf(w, "    %s: %s", string(keyJSON), valueJSON)
-
-			if i < len(headers)-1 {
-				io.WriteString(w, ",\n")
-			} else {
-				io.WriteString(w, "\n")
+			if err = writeJSONValue(w, inferValue(raw)); err != nil {
+				return stats, err
 			}
 		}
-
-		io.WriteString(w, "  }")
+		if _, err = io.WriteString(w, "\n  }"); err != nil {
+			return stats, err
+		}
+		stats.Rows++
 	}
 
-	if recordCount == 0 {
-		io.WriteString(w, "]\n")
-		return
+	if stats.Rows == 0 {
+		_, err = io.WriteString(w, "]\n")
+	} else {
+		_, err = io.WriteString(w, "\n]\n")
 	}
-
-	io.WriteString(w, "\n]")
+	return stats, err
 }
 
-func detectDelimiterAdvanced(r io.Reader) (rune, bool) {
-	buf := make([]byte, 512*1024)
-	n, _ := r.Read(buf)
-	sample := string(buf[:n])
-
-	lines := strings.Split(sample, "\n")
-
-	// 끊긴 마지막 줄 제외
-	if len(lines) > 1 && n == len(buf) {
-		lines = lines[:len(lines)-1]
-	}
-
-	// 헤더 줄이 비어있으면 오류
-	if len(lines) == 0 {
-		return ',', true
-	}
-
-	candidates := []rune{',', '|', ';', '\t'}
-
-	// [FIX 1] sample 전체가 아닌 lines[0](헤더 줄)에서만 후보 추림
-	// 데이터 셀 안에 |, ;, \t 가 포함되어도 오탐하지 않음
-	headerLine := lines[0]
-	var presentCandidates []rune
-	for _, d := range candidates {
-		if strings.ContainsRune(headerLine, d) {
-			presentCandidates = append(presentCandidates, d)
-		}
-	}
-
-	// 어떤 구분자도 없다면 잘못된 파일
-	if len(presentCandidates) == 0 {
-		return ',', true
-	}
-
-	// [FIX 2] lines 를 줄별로 독립 파싱하지 않고 전체를 하나의 csv.Reader 로 파싱
-	// → 따옴표 안 줄바꿈/쉼표가 있는 RFC 4180 파일도 정확히 칼럼 수 검증
-	var validDelims []rune
-	for _, d := range presentCandidates {
-		if isValidDelimiter(lines, d) {
-			validDelims = append(validDelims, d)
-		}
-	}
-
-	if len(validDelims) == 0 {
-		return ',', true
-	}
-
-	if len(validDelims) > 1 {
-		return ',', true
-	}
-
-	return validDelims[0], false
+type delimiterScore struct {
+	delim   rune
+	columns int
+	records int
 }
 
-// [FIX 2] lines 를 다시 합쳐서 단일 csv.Reader 로 전체 파싱
-// 줄별 독립 파싱 시 따옴표 내 줄바꿈을 칼럼 수 불일치로 오판하던 버그 수정
-func isValidDelimiter(lines []string, delim rune) bool {
-	joined := strings.Join(lines, "\n")
-	r := csv.NewReader(strings.NewReader(joined))
+func probeDelimiter(rs io.ReadSeeker, delim rune) (delimiterScore, bool) {
+	if _, err := rs.Seek(0, io.SeekStart); err != nil {
+		return delimiterScore{}, false
+	}
+	r := csv.NewReader(rs)
 	r.Comma = delim
-	r.FieldsPerRecord = 0 // 첫 레코드 칼럼 수를 기준으로 자동 설정
-	r.LazyQuotes = true   // 따옴표 파싱 관대하게
+	r.FieldsPerRecord = 0
 
-	var baseLen int
-	found := false
-
-	for {
+	columns := 0
+	records := 0
+	for records < delimiterProbeRecords {
 		rec, err := r.Read()
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			return false
+			// A malformed later row must not erase a delimiter that was
+			// already established by a valid header/prefix. The converter
+			// will report the parse error during the full pass.
+			if records > 0 {
+				break
+			}
+			return delimiterScore{}, false
 		}
-		if !found {
-			baseLen = len(rec)
-			found = true
-			continue
+		if records == 0 {
+			columns = len(rec)
 		}
-		if len(rec) != baseLen {
-			return false
+		records++
+	}
+	return delimiterScore{delim: delim, columns: columns, records: records}, records > 0
+}
+
+func detectDelimiterAdvanced(r io.Reader) (rune, bool) {
+	rs, ok := r.(io.ReadSeeker)
+	if !ok {
+		return ',', true
+	}
+	defer rs.Seek(0, io.SeekStart) // best-effort rewind for caller
+
+	candidates := []rune{',', '\t', '|', ';'}
+	valid := make([]delimiterScore, 0, len(candidates))
+	for _, delim := range candidates {
+		score, ok := probeDelimiter(rs, delim)
+		if ok && score.columns > 1 {
+			valid = append(valid, score)
 		}
 	}
 
-	return found
+	if len(valid) == 0 {
+		// A delimiter-free file is a valid one-column CSV.
+		if score, ok := probeDelimiter(rs, ','); ok && score.columns == 1 {
+			return ',', false
+		}
+		return ',', true
+	}
+
+	best := valid[0]
+	ambiguous := false
+	for _, candidate := range valid[1:] {
+		if candidate.columns > best.columns {
+			best = candidate
+			ambiguous = false
+			continue
+		}
+		if candidate.columns == best.columns {
+			ambiguous = true
+		}
+	}
+	if ambiguous {
+		return ',', true
+	}
+	return best.delim, false
+}
+
+func isValidDelimiter(lines []string, delim rune) bool {
+	r := strings.NewReader(strings.Join(lines, "\n"))
+	score, ok := probeDelimiter(r, delim)
+	return ok && score.columns > 0
+}
+
+func mapConvertError(err error) (code, detail string) {
+	if err == nil {
+		return "", ""
+	}
+	msg := err.Error()
+	switch {
+	case msg == "EMPTY_HEADER":
+		return "EMPTY_HEADER", ""
+	case strings.HasPrefix(msg, "DUPLICATE_HEADER:"):
+		return "DUPLICATE_HEADER", strings.TrimPrefix(msg, "DUPLICATE_HEADER:")
+	case strings.HasPrefix(msg, "HEADER_READ_FAILED"):
+		return "HEADER_READ_FAILED", ""
+	case strings.HasPrefix(msg, "CSV_PARSE_FAILED"):
+		return "CSV_PARSE_FAILED", ""
+	default:
+		return "UNKNOWN_ERROR", ""
+	}
+}
+
+func resetMultipartFile(file multipart.File) error {
+	_, err := file.Seek(0, io.SeekStart)
+	return err
+}
+
+func convertHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "INVALID_METHOD", "")
+		return
+	}
+	if err := r.ParseMultipartForm(8 << 20); err != nil {
+		writeError(w, http.StatusBadRequest, "UPLOAD_FAILED", "")
+		return
+	}
+
+	file, _, err := r.FormFile("csvFile")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "FILE_READ_FAILED", "")
+		return
+	}
+	defer file.Close()
+
+	delim, ambiguous := detectDelimiterAdvanced(file)
+	if ambiguous {
+		writeError(w, http.StatusBadRequest, "MIXED_DELIMITER_DETECTED", "")
+		return
+	}
+	if err := resetMultipartFile(file); err != nil {
+		writeError(w, http.StatusBadRequest, "FILE_READ_FAILED", "")
+		return
+	}
+
+	// Convert to a temporary file first. The HTTP response is not committed until
+	// the complete CSV has been validated, so malformed late rows cannot produce
+	// a successful but truncated JSON download.
+	tmp, err := os.CreateTemp("", "csv-to-json-*.json")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "UNKNOWN_ERROR", "")
+		return
+	}
+	tmpName := tmp.Name()
+	defer func() {
+		tmp.Close()
+		_ = os.Remove(tmpName)
+	}()
+
+	if _, err = convertCSV(file, tmp, delim); err != nil {
+		code, detail := mapConvertError(err)
+		writeError(w, http.StatusBadRequest, code, detail)
+		return
+	}
+	if _, err = tmp.Seek(0, io.SeekStart); err != nil {
+		writeError(w, http.StatusInternalServerError, "UNKNOWN_ERROR", "")
+		return
+	}
+
+	w.Header().Set("Content-Disposition", "attachment; filename=\"download.json\"")
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_, _ = io.Copy(w, tmp)
 }
