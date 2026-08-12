@@ -1,45 +1,33 @@
-# =========================
-# Build
-# =========================
+# Build outputs
 *.exe
 *.out
 *.dll
 *.so
 *.dylib
-
-# Go build cache
 *.test
 *.bench
 *.prof
+build/bin/
 
-# =========================
+# Wails generated bindings
+frontend/wailsjs/
+
 # Go modules
-# =========================
 vendor/
 
-# =========================
-# goversioninfo / Windows resource
-# =========================
+# Generated Windows resources
 *.syso
 
-# =========================
-# IDE (GoLand / IntelliJ)
-# =========================
+# IDE
 .idea/
 *.iml
-
-# VSCode
 .vscode/
 
-# =========================
-# OS 생성 파일
-# =========================
+# OS
 .DS_Store
 Thumbs.db
 
-# =========================
 # Logs / temp
-# =========================
 *.log
 tmp/
 temp/

@@ -1,262 +1,137 @@
-# csv-to-json
-[🚀 Download Latest CsvToJson.exe](https://github.com/jeongdo/csv-to-json/releases/latest)
+# CSV to JSON
 
-Go로 개발한 경량 데스크톱 CSV → JSON 변환기.
+Go + Wails로 만든 가볍고 로컬 우선인 Windows 데스크톱 CSV → JSON 변환기입니다.
 
-csv-to-json은 간단한 그래픽 인터페이스를 통해 CSV 파일을 JSON 형식으로 변환하는 포터블(Portable) 데스크톱 유틸리티입니다.
-
-이 애플리케이션은 로컬 환경에서만 실행되며, 설치가 필요 없고 외부 종속성도 없습니다.
-
-실행 파일을 다운로드하여 실행하면 CSV 파일을 JSON으로 즉시 변환할 수 있습니다.
-
----
+CSV/TSV/구분자 텍스트 파일을 외부로 업로드하지 않고 PC 안에서 JSON으로 변환합니다. 화면단은 파일 내용이 아니라 **파일 경로만 Go에 전달**하고, Go가 원본 파일을 직접 열어 레코드 단위로 처리합니다. 따라서 대용량 CSV도 브라우저 Blob이나 전체 메모리 적재 없이 처리할 수 있습니다.
 
 ## 주요 기능
 
-* 단일 실행 파일(Exe) 배포
-* 자동 구분자 감지 (CSV, TSV, 파이프, 세미콜론)
-* Go Embed를 이용한 HTML, CSS, JavaScript, 아이콘 내장
-* 로컬 전용 처리 (외부 네트워크 통신 없음)
-* JSON 자동 다운로드
-* CSV 헤더 검증
-* 중복 헤더 검출
-* 빈 헤더 검출
-* UTF-8 BOM 자동 제거
-* CSV 컬럼 순서 유지
-* JSON 데이터 타입 자동 추론
-* 선행 0(Leading Zero) 보호
-* 스트리밍 기반 CSV 변환 (메모리 사용 최소화)
-* 한국어 / 영어 UI 지원
-* Chrome / Edge App Mode 기반 데스크톱 UI
-* Toast 알림 기반 오류 처리
-* CSV 파일 Drag & Drop 지원
-* 프로그램 종료 시 자동 프로세스 정리
+- Wails 네이티브 데스크톱 창 — localhost 서버 / Chrome·Edge App Mode 제거
+- Drag & Drop + 네이티브 파일 열기/저장 대화상자
+- `encoding/csv` 기반 직접 디스크 스트리밍
+- 제한된 미리보기: 헤더 + 최초 8행만 읽기
+- 구분자 자동 감지: 쉼표, 탭, 파이프, 세미콜론
+- 1개 컬럼 CSV 정상 지원
+- UTF-8 BOM 헤더 자동 제거
+- 빈 헤더 / 중복 헤더 검증
+- CSV 컬럼 순서 그대로 JSON key 순서 유지
+- JSON 데이터 타입 자동 추론 On/Off
+- 빈 셀 → `null` 옵션
+- `01001` 같은 선행 0 식별자 문자열 보호
+- `9223372036854775808` 같은 큰 숫자도 `float64` 정밀도 손실 없이 그대로 출력
+- 문자열 앞뒤 공백 보존
+- 대용량 파일 진행률 표시
+- 안전한 결과 저장: 임시 파일에 끝까지 성공한 뒤에만 최종 JSON 교체
+- 한국어 / 영어 UI
+- 라이트 / 다크 테마
+- 완전 로컬 처리
 
----
-
-## 동작 방식
+## 데이터 안전 구조
 
 ```text
-CSV 파일
-    ↓
-csv-to-json
-    ↓
-CSV 검증
-    ↓
-스트리밍 변환
-    ↓
-JSON 다운로드
+CSV / TSV 파일
+    │
+    ├─ 검사: 헤더 + 최대 8행 미리보기
+    │
+    └─ 변환
+         │
+         ▼
+    Go가 원본 파일 직접 Open
+         │
+         ▼
+    csv.Reader 레코드 단위 처리
+         │
+         ▼
+    임시 JSON 파일 작성
+         │
+         ├─ 실패 → 임시 파일 삭제 / 기존 결과 파일 유지
+         │
+         └─ 성공 → 최종 JSON 파일로 교체
 ```
 
-프로그램은 임시 로컬 HTTP 서버를 실행한 후 브라우저를 App Mode로 실행합니다.
+변환 과정에서 프런트엔드는 `File.arrayBuffer()`, `File.text()`, `response.blob()` 또는 HTTP 업로드를 사용하지 않습니다.
 
-CSV 데이터를 JSON으로 변환한 뒤 자동으로 다운로드를 시작합니다.
+## 타입 추론 예시
 
-모든 처리는 사용자 PC 내부에서만 수행됩니다.
-
----
-
-## 지원 데이터 타입
-
-csv-to-json은 입력된 데이터를 분석하여 최적의 JSON 데이터 타입을 자동으로 적용합니다.
-
-지원 타입:
-
-* 문자열(String)
-* 정수(Integer)
-* 실수(Float)
-* 불리언(Boolean)
-
-### 입력 CSV
+**데이터 타입 자동 추론**을 켠 경우:
 
 ```csv
-name,age,salary,active
-Kim,20,3500.50,true
-Lee,30,4200,false
+name,age,zipcode,active,big
+Kim,20,01001,true,9223372036854775808
 ```
 
-### 출력 JSON
+결과:
 
 ```json
 [
   {
     "name": "Kim",
     "age": 20,
-    "salary": 3500.50,
-    "active": true
-  },
-  {
-    "name": "Lee",
-    "age": 30,
-    "salary": 4200,
-    "active": false
+    "zipcode": "01001",
+    "active": true,
+    "big": 9223372036854775808
   }
 ]
 ```
 
----
-
-## 선행 0 보호
-
-### 입력
-
-```csv
-zipcode
-01001
-```
-
-### 출력
-
-```json
-{
-  "zipcode": "01001"
-}
-```
-
-우편번호, 사번, 상품코드 등 선행 0이 의미를 가지는 값은 문자열로 유지됩니다.
-
-이를 통해 데이터 손상을 방지합니다.
-
----
-
-## CSV 검증
-
-다음 항목을 자동 검증합니다.
-
-* 빈 헤더
-* 중복 헤더
-* 헤더 누락
-* CSV 형식 오류
-
-### 잘못된 CSV 예시
-
-```csv
-name,name,age
-Kim,20,Seoul
-```
-
-### 결과
-
-```text
-중복 헤더 발견: name
-```
-
----
-
-## 아키텍처
-
-```text
-CsvToJson.exe
-        │
-        ▼
-내장 HTTP 서버
-(127.0.0.1 임의 포트)
-        │
-        ▼
-Chrome / Edge App Mode
-        │
-        ▼
-HTML + CSS + JavaScript UI
-        │
-        ▼
-스트리밍 CSV 파서
-        │
-        ▼
-JSON 다운로드
-```
-
----
-
-## 브라우저 지원
-
-Windows 실행 우선순위:
-
-1. Google Chrome
-2. Microsoft Edge
-3. 기본 브라우저
-
-Chrome 또는 Edge가 설치되어 있지 않은 경우 자동으로 기본 브라우저를 사용합니다.
-
----
+`+1`, `.5`, `1.`, `-01`처럼 JSON 숫자 문법에 맞지 않는 값은 억지로 숫자로 만들지 않고 문자열로 유지하므로 깨진 JSON을 만들지 않습니다.
 
 ## 프로젝트 구조
 
 ```text
-csv-to-json
-│
-├── main.go
-├── browser.go
-├── converter.go
-├── index.html
-├── style.css
-├── app.js
-├── app.ico
-└── README.md
+.
+├─ main.go                  # Wails 앱 진입점
+├─ app.go                   # 네이티브 대화상자 / UI 바인딩
+├─ converter.go             # 순수 CSV → JSON 변환 코어
+├─ file_io.go               # 직접 파일 스트리밍 / 안전한 결과 교체
+├─ converter_test.go
+├─ file_io_test.go
+├─ frontend/
+│  └─ dist/
+│     ├─ index.html
+│     ├─ app.js
+│     └─ style.css
+├─ build/
+│  └─ windows/
+│     └─ icon.ico
+├─ .github/workflows/
+│  └─ windows-build.yml
+└─ wails.json
 ```
-
----
 
 ## 빌드
 
-### 1. 사전 준비 (필수 도구 설치)
+개발 환경:
 
-아이콘 및 Windows 리소스 처리를 위해 `goversioninfo`를 설치합니다.
-
-```bash
-go install github.com/josephspurrier/goversioninfo/cmd/goversioninfo@latest
-```
-
-### 2. 리소스 파일 확인 (선택 사항)
-
-실행 파일에 아이콘과 버전 정보를 포함하려면 프로젝트 루트에 다음 파일들을 준비합니다.
-
-* app.ico : 실행 파일 아이콘
-* versioninfo.json : 버전 정보 설정 파일
-* app.manifest : Windows 실행 권한 매니페스트
-
-### 3. 리소스 생성 (.syso 파일 생성)
+- Go 1.26+
+- Wails v2.13.0
+- Windows exe 빌드 시 Windows 환경
 
 ```bash
-goversioninfo -platform-specific=true
+go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
+go test .
+wails build -clean
 ```
 
-### 4. 최종 빌드
+Windows 실행 파일:
 
-```bash
-go build -ldflags="-H windowsgui" -o CsvToJson.exe
+```text
+build/bin/CsvToJson.exe
 ```
 
----
+`main`에 push될 때마다 GitHub Actions에서 Go 테스트와 Windows exe 빌드를 자동 검증합니다.
 
-## 요구사항
+## 현재 범위
 
-* Windows 10 이상
-* Go 1.26.4 (개발 시에만 필요)
+의도적으로 아직 넣지 않은 기능:
 
-최종 사용자는 별도 설치가 필요하지 않습니다.
+- XLSX 입력
+- Nested JSON 생성
+- 스키마 매핑/편집
+- 임의 출력 템플릿
 
----
-
-## 제한 사항
-
-현재 버전은 단순성과 경량성에 초점을 맞추고 있습니다.
-
-지원하지 않는 기능:
-
-* XLSX 입력
-* 중첩(Nested) JSON 생성
-* 스키마 매핑
-* 사용자 정의 출력 포맷
-
----
+이 프로젝트는 기능을 무작정 늘리기보다 **CSV → JSON 하나를 빠르고 안전하고 믿을 수 있게 처리하는 작은 데스크톱 도구**를 목표로 합니다.
 
 ## 라이선스
 
-본 프로젝트는 Apache License, Version 2.0에 따라 라이선스가 부여됩니다. 
-자세한 내용은 LICENSE 파일을 참조하십시오.
-
----
-
-## Contributing
-
-본 프로젝트에 기여해주시는 모든 코드는 Apache 2.0 라이선스를 따릅니다. 기여를 해주시는 것은 해당 코드를 프로젝트의 관리하에 배포하는 것에 동의하는 것으로 간주합니다.
+Apache License 2.0. 자세한 내용은 [LICENSE](LICENSE)를 참고하세요.
