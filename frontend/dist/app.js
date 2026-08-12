@@ -1,33 +1,238 @@
-const LANG = {
-  en: {
-    subtitle: 'Fast, local conversion. Your data never leaves this computer.', localBadge: 'LOCAL ONLY',
-    dropTitle: 'Drop a CSV file here', dropHint: 'or click to choose a file', dropFormats: 'CSV Â· TSV Â· pipe Â· semicolon Â· UTF-8 BOM',
-    selectedLabel: 'SELECTED FILE', changeFile: 'Change', sizeLabel: 'Size', delimiterLabel: 'Delimiter', columnsLabel: 'Columns',
-    previewLabel: 'PREVIEW', previewTitle: 'First rows', optionsLabel: 'OPTIONS', optionsTitle: 'Conversion',
-    inferTitle: 'Infer data types', inferHint: 'Numbers and booleans become native JSON values.', nullTitle: 'Empty cells as null', nullHint: 'Otherwise empty cells stay as empty strings.',
-    safeTitle: 'Safe conversion', safeHint: 'Leading-zero values stay strings. Output is committed only after the full CSV succeeds.', convertButton: 'Convert to JSON',
-    progressTitle: 'Convertingâ€¦', progressText: 'Reading the CSV directly from disk.', completeLabel: 'COMPLETE', completeTitle: 'JSON file created',
-    rowsLabel: 'Rows', outputSizeLabel: 'Output', timeLabel: 'Time', revealButton: 'Show in folder', againButton: 'Convert another',
-    delimiters: { comma: 'Comma (,)', tab: 'Tab', pipe: 'Pipe (|)', semicolon: 'Semicolon (;)' },
-    errors: {
-      FILE_READ_FAILED: 'The file could not be read.', HEADER_READ_FAILED: 'The header row could not be read.', EMPTY_HEADER: 'An empty column header was found.',
-      DUPLICATE_HEADER: 'Duplicate column headers were found.', MIXED_DELIMITER_DETECTED: 'The delimiter is ambiguous or mixed.', CSV_PARSE_FAILED: 'The CSV is malformed.',
-      OUTPUT_CREATE_FAILED: 'The output file could not be created.', OUTPUT_WRITE_FAILED: 'The JSON file could not be written.', OUTPUT_EQUALS_INPUT: 'The output path cannot be the input file.',
-      CONVERSION_IN_PROGRESS: 'A conversion is already running.', UNKNOWN_ERROR: 'An unexpected error occurred.'
+const TEXT = navigator.language.toLowerCase().startsWith('ko') ? {
+  subtitle: 'ë¹ ë¥´ê³  ì•ˆì „í•œ ë¡œì»¬ ë³€í™˜. ë°ì´í„°ëŠ” ì´ PC ë°–ìœ¼ë¡œ ë‚˜ê°€ì§€ ì•ŠìŠµë‹ˆë‹¤.',
+  localBadge: 'ë¡œì»¬ ì „ìš©', dropTitle: 'CSV íŒŒì¼ì„ ì—¬ê¸°ì— ë†“ìœ¼ì„¸ìš”', dropHint: 'ë˜ëŠ” í´ë¦­í•´ì„œ íŒŒì¼ ì„ íƒ',
+  selectedLabel: 'ì„ íƒí•œ íŒŒì¼', changeFile: 'ë³€ê²½', sizeLabel: 'í¬ê¸°', delimiterLabel: 'êµ¬ë¶„ìž', columnsLabel: 'ì»¬ëŸ¼',
+  previewLabel: 'ë¯¸ë¦¬ë³´ê¸°', previewTitle: 'ì²« ë°ì´í„°', optionsLabel: 'ì˜µì…˜', optionsTitle: 'ë³€í™˜ ì„¤ì •',
+  inferTitle: 'ë°ì´í„° íƒ€ìž… ìžë™ ì¶”ë¡ ', inferHint: 'ìˆ«ìžì™€ Booleanì„ JSON íƒ€ìž…ìœ¼ë¡œ ë³€í™˜í•©ë‹ˆë‹¤.',
+  nullTitle: 'ë¹ˆ ì…€ì„ nullë¡œ', nullHint: 'ë„ë©´ ë¹ˆ ë¬¸ìžì—´("")ë¡œ ìœ ì§€í•©ë‹ˆë‹¤.', safeTitle: 'ì•ˆì „ ë³€í™˜',
+  safeHint: 'ì„ í–‰ 0 ê°’ì€ ë¬¸ìžì—´ë¡œ ë³´í˜¸í•˜ê³  ì „ì²´ CSV ì„±ê³µ í›„ì—ë§Œ ê²°ê³¼ íŒŒì¼ì„ í™•ì •í•©ë‹ˆë‹¤.',
+  convertButton: 'JSONìœ¼ë¡œ ë³€í™˜', progressTitle: 'ë³€í™˜ ì¤‘â€¦', progressText: 'CSVë¥¼ ë””ìŠ¤í¬ì—ì„œ ì§ì ‘ ìŠ¤íŠ¸ë¦¬ë° ì²˜ë¦¬í•˜ê³  ìžˆìŠµë‹ˆë‹¤.',
+  completeLabel: 'ë³€í™˜ ì™„ë£Œ', completeTitle: 'JSON íŒŒì¼ì„ ë§Œë“¤ì—ˆìŠµë‹ˆë‹¤', rowsLabel: 'í–‰', outputSizeLabel: 'ê²°ê³¼ í¬ê¸°',
+  timeLabel: 'ì†Œìš” ì‹œê°„', revealButton: 'í´ë”ì—ì„œ ë³´ê¸°', againButton: 'ë‹¤ë¥¸ íŒŒì¼ ë³€í™˜',
+  delimiters: { comma: 'ì‰¼í‘œ (,)', tab: 'íƒ­', pipe: 'íŒŒì´í”„ (|)', semicolon: 'ì„¸ë¯¸ì½œë¡  (;)' },
+  errors: {
+    BACKEND_NOT_READY: 'ì•± ë°±ì—”ë“œê°€ ì¤€ë¹„ë˜ì§€ ì•Šì•˜ìŠµë‹ˆë‹¤. ì•±ì„ ë‹¤ì‹œ ì‹¤í–‰í•´ ì£¼ì„¸ìš”.',
+    FILE_READ_FAILED: 'íŒŒì¼ì„ ì½ì„ ìˆ˜ ì—†ìŠµë‹ˆë‹¤.', HEADER_READ_FAILED: 'í—¤ë” í–‰ì„ ì½ì„ ìˆ˜ ì—†ìŠµë‹ˆë‹¤.',
+    EMPTY_HEADER: 'ë¹ˆ ì»¬ëŸ¼ëª…ì´ ìžˆìŠµë‹ˆë‹¤.', DUPLICATE_HEADER: 'ì¤‘ë³µ ì»¬ëŸ¼ëª…ì´ ìžˆìŠµë‹ˆë‹¤.',
+    MIXED_DELIMITER_DETECTED: 'êµ¬ë¶„ìžê°€ í˜¼í•©ë˜ì—ˆê±°ë‚˜ íŒë³„í•˜ê¸° ì–´ë µìŠµë‹ˆë‹¤.', CSV_PARSE_FAILED: 'CSV í˜•ì‹ì´ ì˜¬ë°”ë¥´ì§€ ì•ŠìŠµë‹ˆë‹¤.',
+    OUTPUT_CREATE_FAILED: 'ê²°ê³¼ íŒŒì¼ì„ ë§Œë“¤ ìˆ˜ ì—†ìŠµë‹ˆë‹¤.', OUTPUT_WRITE_FAILED: 'JSON íŒŒì¼ì„ ì €ìž¥í•  ìˆ˜ ì—†ìŠµë‹ˆë‹¤.',
+    OUTPUT_EQUALS_INPUT: 'ìž…ë ¥ íŒŒì¼ê³¼ ê²°ê³¼ íŒŒì¼ ê²½ë¡œê°€ ê°™ì„ ìˆ˜ ì—†ìŠµë‹ˆë‹¤.', CONVERSION_IN_PROGRESS: 'ì´ë¯¸ ë³€í™˜ ìž‘ì—…ì´ ì‹¤í–‰ ì¤‘ìž…ë‹ˆë‹¤.',
+    UNKNOWN_ERROR: 'ì˜ˆìƒí•˜ì§€ ëª»í•œ ì˜¤ë¥˜ê°€ ë°œìƒí–ˆìŠµë‹ˆë‹¤.'
+  }
+} : {
+  subtitle: 'Fast, local conversion. Your data never leaves this computer.', localBadge: 'LOCAL ONLY',
+  dropTitle: 'Drop a CSV file here', dropHint: 'or click to choose a file', selectedLabel: 'SELECTED FILE', changeFile: 'Change',
+  sizeLabel: 'Size', delimiterLabel: 'Delimiter', columnsLabel: 'Columns', previewLabel: 'PREVIEW', previewTitle: 'First rows',
+  optionsLabel: 'OPTIONS', optionsTitle: 'Conversion', inferTitle: 'Infer data types',
+  inferHint: 'Numbers and booleans become native JSON values.', nullTitle: 'Empty cells as null',
+  nullHint: 'Otherwise empty cells stay as empty strings.', safeTitle: 'Safe conversion',
+  safeHint: 'Leading-zero values stay strings. Output is committed only after the full CSV succeeds.',
+  convertButton: 'Convert to JSON', progressTitle: 'Convertingâ€¦', progressText: 'Reading the CSV directly from disk.',
+  completeLabel: 'COMPLETE', completeTitle: 'JSON file created', rowsLabel: 'Rows', outputSizeLabel: 'Output', timeLabel: 'Time',
+  revealButton: 'Show in folder', againButton: 'Convert another',
+  delimiters: { comma: 'Comma (,)', tab: 'Tab', pipe: 'Pipe (|)', semicolon: 'Semicolon (;)' },
+  errors: {
+    BACKEND_NOT_READY: 'The app backend is not ready. Restart the app.', FILE_READ_FAILED: 'The file could not be read.',
+    HEADER_READ_FAILED: 'The header row could not be read.', EMPTY_HEADER: 'An empty column header was found.',
+    DUPLICATE_HEADER: 'Duplicate column headers were found.', MIXED_DELIMITER_DETECTED: 'The delimiter is ambiguous or mixed.',
+    CSV_PARSE_FAILED: 'The CSV is malformed.', OUTPUT_CREATE_FAILED: 'The output file could not be created.',
+    OUTPUT_WRITE_FAILED: 'The JSON file could not be written.', OUTPUT_EQUALS_INPUT: 'The output path cannot be the input file.',
+    CONVERSION_IN_PROGRESS: 'A conversion is already running.', UNKNOWN_ERROR: 'An unexpected error occurred.'
+  }
+};
+
+let currentFile = null;
+let lastOutputPath = '';
+let toastTimer = null;
+
+const $ = (id) => document.getElementById(id);
+
+function applyText() {
+  const keys = ['subtitle','localBadge','dropTitle','dropHint','selectedLabel','changeFile','sizeLabel','delimiterLabel','columnsLabel',
+    'previewLabel','previewTitle','optionsLabel','optionsTitle','inferTitle','inferHint','nullTitle','nullHint','safeTitle','safeHint',
+    'convertButton','progressTitle','progressText','completeLabel','completeTitle','rowsLabel','outputSizeLabel','timeLabel','revealButton','againButton'];
+  for (const key of keys) if ($(key) && TEXT[key]) $(key).textContent = TEXT[key];
+}
+
+function getApp() {
+  const app = window.go && window.go.main && window.go.main.App;
+  if (!app) throw new Error('BACKEND_NOT_READY');
+  return app;
+}
+
+function formatBytes(bytes) {
+  const n = Number(bytes) || 0;
+  if (n <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.min(Math.floor(Math.log(n) / Math.log(1024)), units.length - 1);
+  const value = n / Math.pow(1024, i);
+  return `${value >= 10 || i === 0 ? value.toFixed(i === 0 ? 0 : 1) : value.toFixed(2)} ${units[i]}`;
+}
+
+function formatDuration(ms) {
+  const n = Number(ms) || 0;
+  return n < 1000 ? `${n} ms` : `${(n / 1000).toFixed(n < 10000 ? 2 : 1)} s`;
+}
+
+function errorCode(error) {
+  const raw = String((error && error.message) || error || 'UNKNOWN_ERROR');
+  for (const code of Object.keys(TEXT.errors)) if (raw.includes(code)) return code;
+  return 'UNKNOWN_ERROR';
+}
+
+function showToast(error) {
+  const code = errorCode(error);
+  const toast = $('toast');
+  toast.textContent = TEXT.errors[code] || TEXT.errors.UNKNOWN_ERROR;
+  toast.className = 'show';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { toast.className = ''; }, 4000);
+  console.error(error);
+}
+
+function showOnly(view) {
+  for (const id of ['dropView', 'workspace', 'progressView', 'successView']) {
+    $(id).classList.toggle('hidden', id !== view);
+  }
+}
+
+function renderPreview(info) {
+  const table = $('previewTable');
+  table.replaceChildren();
+  const thead = document.createElement('thead');
+  const headerRow = document.createElement('tr');
+  for (const header of info.headers || []) {
+    const th = document.createElement('th');
+    th.textContent = header;
+    headerRow.appendChild(th);
+  }
+  thead.appendChild(headerRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  for (const row of info.preview || []) {
+    const tr = document.createElement('tr');
+    for (let i = 0; i < (info.headers || []).length; i++) {
+      const td = document.createElement('td');
+      td.textContent = row[i] ?? '';
+      tr.appendChild(td);
     }
-  },
-  ko: {
-    subtitle: 'ë¹ ë¥´ê³  ì•ˆì „í•œ ë¡œì»¬ ë³€í™˜. ë°ì´í„°ëŠ” ì´ PC ë°–ìœ¼ë¡œ ë‚˜ê°€ì§€ ì•ŠìŠµë‹ˆë‹¤.', localBadge: 'ë¡œì»¬ ì „ìš©',
-    dropTitle: 'CSV íŒŒì¼ì„ ì—¬ê¸°ì— ë†“ìœ¼ì„¸ìš”', dropHint: 'ë˜ëŠ” í´ë¦­í•´ì„œ íŒŒì¼ ì„ íƒ', dropFormats: 'CSV Â· TSV Â· íŒŒì´í”„ Â· ì„¸ë¯¸ì½œë¡  Â· UTF-8 BOM',
-    selectedLabel: 'ì„ íƒí•œ íŒŒì¼', changeFile: 'ë³€ê²½', sizeLabel: 'm¬ê¸°', delimiterLabel: 'êµ¬ë¶„ìž', columnsLabel: 'ì»¬ëŸ¼',
-    previewLabel: 'ë¯¸ë¦¬ë³´ê¸°', previewTitle: 'ì²© ë°ì´í„°', optionsLabel: 'ì˜µì…˜', optionsTitle: 'ë³€í™˜ ì„¤ì •',
-    inferTitle: 'ë°ì´í„° íƒ€ìž… ìžë™ ì¶”ë¡ ', inferHint: 'ìˆ«ìžì™€ Booleanì„ JSON íƒ€ìž…ìœ¼ë¡œ ë³€í™˜í•©ë‹ˆë‹¤.', nullTitle: 'ë¹ˆ ì…€ì„ nullë¡œ', nullHint: 'ë„ë©´ ë¹ˆ ë¬¸ìžì—´("")ë¡œ ìœ ì§€í•©ë‹ˆë‹¤.',
-    safeTitle: 'ì•ˆì „ ë³€í™˜', safeHint: 'ì„ í–‰ 0 ê°’ì€ ë¬¸ìžì—´ë¡œ ë³´í˜¸í•˜ê³  ì „ì²´ CSV ì„±ê³µ í›„ì—ë§Œ ê²°ê³¼ íŒŒì¼ì„ í™•ì •í•©ë‹ˆë‹¤.', convertButton: 'JSONìœ¼ë¡œ ë³€í™˜',
-    progressTitle: 'ë³€í™˜ ì¤‘â€¦', progressText: 'CSVë¥¼ ë””ìŠ¤í¬ì—ì„œ ì§ì ‘ ìŠ¤íŠ¸ë¦¬ë° ì²˜ë¦¬í•˜ê³  ìžˆìŠµë‹ˆë‹¤.', completeLabel: 'ë³€í™˜ ì™„ë£Œ', completeTitle: 'JSON íŒŒì¼ì„ ë§Œë“¤ì—ˆìŠµë‹ˆë‹¤',
-    rowsLabel: 'm–‰', outputSizeLabel: 'ê²°ê³¼ í¬ê¸°', timeLabel: 'ì†Œìš” ì‹œê°„', revealButton: 'í´ë”ì—ì„œ ë³´ê¸°', againButton: 'ë‹¤ë¥¸ íŒŒì¼ ë³€í™˜',
-    delimiters: { comma: 'ì‰¼í‘œ (,)', tab: 'íƒ­', pipe: 'íŒŒì´í”„ (|)', semicolon: 'ì„¸ë¯¸ì½œë¡  (;)' },
-    errors: {
-      FILE_READ_FAILED: 'mŒŒì¼ì„ ì½ì„ ìˆ˜ ì—†ìŠµë‹ˆë‹¤.', HEADER_READ_FAILED: 'í—¤ë” í–‰ì„ ì½ì„ ìˆ˜ ì—†ìŠµë‹ˆë‹¤.', EMPTY_HEADER: 'ë¹ˆ ì»¬ëŸ¼ëª…ì´ ìžˆìŠµë‹ˆë‹¤.',
-      DUPLICATE_HEADER: 'ì¤‘ë³µ ì»¬ëŸ¼ëª…ì´ ìžˆìŠµë‹ˆë‹¤.', MIXED_DELIMITER_DETECTED: 'êµ¬ë¶„ìžê°€ í˜¼í•©ë˜ì—ˆê±°ë‚˜ íŒë³„í•˜ê¸° ì–´ë µìŠµë‹ˆë‹¤.', CSV_PARSE_FAILED: 'CSV í˜•ì‹ì´ ì˜¬ë°”ë¥´ì§€ ì•ŠìŠµë‹ˆë‹¤.',
-      OUTPUT_CREATE_FAILED: 'ê²°ê³¼ íŒŒì¼ì„ ë§Œë“¤ ìˆ˜ ì—†ìŠµë‹ˆë‹¤.', OUTPUT_WRITE_FAILED: 'JSON íŒŒì¼ì„ ì €ìž¥í•  ìˆ˜ ì—†ìŠµë‹ˆë‹¤.', OUTPUT_EQUALS_INPUT: 'ìž…ë ¥ íŒŒì¼ê³¼ ê²°ê³¼ íŒŒì¼ ê²½ë¡œê°€ ê°™ì„ ìˆ˜ ì—†ìŠµë‹ˆë‹¤.',
-      CONVERSION_IN_PROGRESS: 'ì´ë¯¸ ë³€í™˜ ìž‘ì—…ì´ ì‹¤í–‰ ì¤‘è^¸¸Ž¸ºBârÂTä´äõtåôU%$õ#¢~ÉˆŽÈ8ÙYŽÊxº«¾ÙYÂÉŠNºYŽ«»	ÎÈ9ÞÙhŽÈ«^¸¸Ž¸ºBâp¢Ð¢Ð§Ó° ¦6öç7BBÒæf–vF÷"æÆæwVvRçFôÆ÷vW$66R‚’ç7F'G5v—F‚‚v¶òr’òÄäræ¶ò¢ÄäræVã°¦ÆWB7W'&VçDf–ÆRÒçVÆÃ°¦ÆWBÆ7D÷WGWEF‚Òrs° ¦6öç7BBÒ†–B’ÓâFö7VÖVçBævWDVÆVÖVçD'”–B†–B“°¦6öç7B–G2Ò²w7V'F—FÆRrÂvÆö6Ä&FvRrÂvG&÷F—FÆRrÂvG&÷†–çBrÂvG&÷f÷&ÖG2rÂw6VÆV7FVDÆ&VÂrÂv6†ævTf–ÆRrÂw6—¦TÆ&VÂrÂvFVÆ–Ö—FW$Æ&VÂrÂv6öÇVÖç4Æ&VÂrÂw&Wf–WtÆ&VÂrÂw&Wf–WuF—FÆRrÂv÷F–öç4Æ&VÂrÂv÷F–öç5F—FÆRrÂv–æfW%F—FÆRrÂv–æfW$†–çBrÂvçVÆÅF—FÆRrÂvçVÆÄ†–çBrÂw6fUF—FÆRrÂw6fT†–çBrÂv6öçfW'D'WGFöârÂw&öw&W75F—FÆRrÂw&öw&W75FW‡BrÂv6ö×ÆWFTÆ&VÂrÂv6ö×ÆWFUF—FÆRrÂw&÷w4Æ&VÂrÂv÷WGWE6—¦TÆ&VÂrÂwF–ÖTÆ&VÂrÂw&WfVÄ'WGFöârÂvv–ä'WGFöâuÓ°¦–G2æf÷$V6‚‚†–B’Óâ²–b‚B†–B’bbE¶–EÒ’B†–B’çFW‡D6öçFVçBÒE¶–EÓ²Ò“° ¦gVæ7F–öâ&6¶VæB‚’°¢6öç7BÒv–æF÷rævóòæÖ–ãòä°¢–b‚’F‡&÷ræWrW'&÷"‚t$4´TäEôäõEõ$TE’r“°¢&WGW&â°§Ð ¦gVæ7F–öâf÷&ÖD'—FW2†'—FW2’°¢–b‚çVÖ&W"æ—4f–æ—FR†'—FW2’ÇÂ'—FW2ÃÒ’&WGW&âs"s°¢6öç7BVæ—G2Ò²t"rÂt´"rÂtÔ"rÂtt"rÂuD"uÓ°¢6öç7B’ÒÖF‚æÖ–â„ÖF‚æfÆö÷"„ÖF‚æÆör†'—FW2’òÖF‚æÆörƒ#B’’ÂVæ—G2æÆVæwF‚Ò“°¢6öç7BfÇVRÒ'—FW2òÖF‚ç÷rƒ#BÂ’“°¢&WGW&âG·fÇVRãÒÇÂ’ÓÓÒòfÇVRçFôf—†VB†’ÓÓÒò¢’¢fÇVRçFôf—†VBƒ"—ÒG·Væ—G5¶•×Ö°§Ð ¦gVæ7F–öâf÷&ÖDGW&F–öâ†×2’°¢–b†×2Â’&WGW&âG¶×7Ò×6°¢&WGW&âG²†×2ò’çFôf—†VB†×2Âò"¢—Ò6°§Ð ¦gVæ7F–öâW'&÷$6öFR†W'&÷"’°¢6öç7B&rÒ7G&–ær†W'&÷#òæÖW76vRÇÂW'&÷"ÇÂuTä´äõtåôU%$õ"r“°¢6öç7B6öFW2Òö&¦V7Bæ¶W—2…BæW'&÷'2“°¢&WGW&â6öFW2æf–æB‚†6öFR’Óâ&ræ–æ6ÇVFW2†6öFR’’ÇÂuTä´äõtåôU%$õ"s°§Ð ¦gVæ7F–öâ6†÷uFö7B†W'&÷"’°¢6öç7B6öFRÒW'&÷$6öFR†W'&÷"“°¢6öç7BFö7BÒB‚wFö7Br“°¢Fö7BçFW‡D6öçFVçBÒBæW'&÷'5¶6öFUÓ°¢Fö7Bæ6Æ74æÖRÒw6†÷rs°¢6ÆV%F–ÖV÷WB‡6†÷uFö7BçF–ÖW"“°¢6†÷uFö7BçF–ÖW"Ò6WEF–ÖV÷WB‚‚’Óâ²Fö7Bæ6Æ74æÖRÒrs²ÒÂ3C“°§Ð ¦gVæ7F–öâ6†÷töæÇ’‡f–Wr’°¢²vG&÷f–WrrÂwv÷&·76RrÂw&öw&W75f–WrrÂw7V66W75f–WruÒæf÷$V6‚‚†–B’ÓâB†–B’æ6Æ74Æ—7BçFövvÆR‚v†–FFVârÂ–BÓÒf–Wr’“°§Ð ¦gVæ7F–öâ&VæFW%&Wf–Wr†–æfò’°¢6öç7BF&ÆRÒB‚w&Wf–WuF&ÆRr“°¢F&ÆRç&WÆ6T6†–ÆG&Vâ‚“°¢6öç7BF†VBÒFö7VÖVçBæ7&VFTVÆVÖVçB‚wF†VBr“°¢6öç7B†VFW%&÷rÒFö7VÖVçBæ7&VFTVÆVÖVçB‚wG"r“°¢–æfòæ†VFW'2æf÷$V6‚‚††VFW"’Óâ°¢6öç7BF‚ÒFö7VÖVçBæ7&VFTVÆVÖVçB‚wF‚r“°¢F‚çFW‡D6öçFVçBÒ†VFW#°¢†VFW%&÷ræVæD6†–ÆB‡F‚“°¢Ò“°¢F†VBæVæD6†–ÆB††VFW%&÷r“°¢F&ÆRæVæD6†–ÆB‡F†VB“° ¢6öç7BF&öG’ÒFö7VÖVçBæ7&VFTVÆVÖVçB‚wF&öG’r“°¢–æfòç&Wf–Wræf÷$V6‚‚‡&÷r’Óâ°¢6öç7BG"ÒFö7VÖVçBæ7&VFTVÆVÖVçB‚wG"r“°¢–æfòæ†VFW'2æf÷$V6‚‚…òÂ’’Óâ°¢6öç7BFBÒFö7VÖVçBæ7&VFTVÆVÖVçB‚wFBr“°¢FBçFW‡D6öçFVçBÒ&÷u¶•Òóòrs°¢G"æVæD6†–ÆB‡FB“°¢Ò“°¢F&öG’æVæD6†–ÆB‡G"“°¢Ò“°¢F&ÆRæVæD6†–ÆB‡F&öG’“°§Ð ¦gVæ7F–öâ6WDf–ÆR†–æfò’°¢–b‚–æfò’&WGW&ã°¢7W'&VçDf–ÆRÒ–æfó°¢B‚vf–ÆTæÖRr’çFW‡D6öçFVçBÒ–æfòææÖS°¢B‚vf–ÆUF‚r’çFW‡D6öçFVçBÒ–æfòçFƒ°¢B‚vf–ÆU6—¦Rr’çFW‡D6öçFVçBÒf÷&ÖD'—FW2†–æfòç6—¦R“°¢B‚vFVÆ–Ö—FW"r’çFW‡D6öçFVçBÒBæFVÆ–Ö—FW'5¶–æfòæFVÆ–Ö—FW%ÒÇÂ–æfòæFVÆ–Ö—FW%'VæS°¢B‚v6öÇVÖç2r’çFW‡D6öçFVçBÒ7G&–ær†–æfòæ6öÇVÖç2“°¢&VæFW%&Wf–Wr†–æfò“°¢6†÷töæÇ’‚wv÷&·76Rr“°§Ð ¦7–æ2gVæ7F–öâ6†ö÷6Tf–ÆR‚’°¢G'’°¢6öç7B–æfòÒv—B&6¶VæB‚’å6VÆV7D55b‚“°¢–b†–æfò’6WDf–ÆR†–æfò“°¢Ò6F6‚†W'&÷"’°¢6†÷uFö7B†W'&÷"“°¢Ð§Ð ¦7–æ2gVæ7F–öâ–ç7V7DG&÷VB‡F‚’°¢G'’°¢6öç7B–æfòÒv—B&6¶VæB‚’ä–ç7V7Df–ÆR‡F‚“°¢6WDf–ÆR†–æfò“°¢Ò6F6‚†W'&÷"’°¢6†÷uFö7B†W'&÷"“°¢Ð§Ð ¢B‚vG&÷¦öæRr’æFDWfVçDÆ—7FVæW"‚v6Æ–6²rÂ6†ö÷6Tf–ÆR“°¢B‚v6†ævTf–ÆRr’æFDWfVçDÆ—7FVæW"‚v6Æ–6²rÂ6†ö÷6Tf–ÆR“° ¢B‚v6öçfW'D'WGFöâr’æFDWfVçDÆ—7FVæW"‚v6Æ–6²rÂ7–æ2‚’Óâ°¢–b‚7W'&VçDf–ÆR’&WGW&ã°¢6†÷töæÇ’‚w&öw&W75f–Wrr“°¢B‚w&öw&W74&"r’ç7G–ÆRçv–GF‚ÒsRs°¢B‚w&öw&W75W&6VçBr’çFW‡D6öçFVçBÒsRs°¢B‚w&öw&W74'—FW2r’çFW‡D6öçFVçBÒs"s°¢G'’°¢6öç7B&W7VÇBÒv—B&6¶VæB‚’ä6öçfW'Df–ÆR†7W'&VçDf–ÆRçF‚Â°¢–æfW%G—W3¢B‚v–æfW%G—W2r’æ6†V6¶VBÀ¢V×G”4çVÆÃ¢B‚vV×G”4çVÆÂr’æ6†V6¶V@¢Ò“°¢–b‚&W7VÇBÇÂ&W7VÇBæ6æ6VÆÆVB’°¢6†÷töæÇ’‚wv÷&·76Rr“°¢&WGW&ã°¢Ð¢Æ7D÷WGWEF‚Ò&W7VÇBæ÷WGWEFƒ°¢B‚w&W7VÇEF‚r’çFW‡D6öçFVçBÒ&W7VÇBæ÷WGWEFƒ°¢B‚w&W7VÇE&÷w2r’çFW‡D6öçFVçBÒçVÖ&W"‡&W7VÇBç&÷w2’çFôÆö6ÆU7G&–ær‚“°¢B‚w&W7VÇE6—¦Rr’çFW‡D6öçFVçBÒf÷&ÖD'—FW2‡&W7VÇBæ'—FW2“°¢B‚w&W7VÇEF–ÖRr’çFW‡D6öçFVçBÒf÷&ÖDGW&F–öâ‡&W7VÇBæGW&F–öä×2“°¢6†÷töæÇ’‚w7V66W75f–Wrr“°¢Ò6F6‚†W'&÷"’°¢6†÷töæÇ’‚wv÷&·76Rr“°¢6†÷uFö7B†W'&÷"“°¢Ð§Ò“° ¢B‚w&WfVÄ'WGFöâr’æFDWfVçDÆ—7FVæW"‚v6Æ–6²rÂ7–æ2‚’Óâ°¢–b‚Æ7D÷WGWEF‚’&WGW&ã°¢G'’²v—B&6¶VæB‚’å&WfVÄf–ÆR†Æ7D÷WGWEF‚“²Ò6F6‚†W'&÷"’²6†÷uFö7B†W'&÷"“²Ð§Ò“° ¢B‚vv–ä'WGFöâr’æFDWfVçDÆ—7FVæW"‚v6Æ–6²rÂ‚’Óâ°¢7W'&VçDf–ÆRÒçVÆÃ°¢Æ7D÷WGWEF‚Òrs°¢6†÷töæÇ’‚vG&÷f–Wrr“°§Ò“° ¦–b‡v–æF÷rç'VçF–ÖSòäWfVçG4öâ’°¢v–æF÷rç'VçF–ÖRäWfVçG4öâ‚v6öçfW'6–öã§&öw&W72rÂ‡&öw&W72’Óâ°¢6öç7B7BÒÖF‚æÖ‚ƒÂÖF‚æÖ–âƒÂçVÖ&W"‡&öw&W72çW&6VçB’ÇÂ’“°¢B‚w&öw&W74&"r’ç7G–ÆRçv–GF‚ÒG·7GÒV°¢B‚w&öw&W75W&6VçBr’çFW‡D6öçFVçBÒG·7GÒV°¢B‚w&öw&W74'—FW2r’çFW‡D6öçFVçBÒ&öw&W72çF÷FÂâòG¶f÷&ÖD'—FW2‡&öw&W72æ'—FW2—ÒòG¶f÷&ÖD'—FW2‡&öw&W72çF÷FÂ—Ö¢f÷&ÖD'—FW2‡&öw&W72æ'—FW2“°¢Ò“°§Ð ¦–b‡v–æF÷rç'VçF–ÖSòäöäf–ÆTG&÷’°¢v–æF÷rç'VçF–ÖRäöäf–ÆTG&÷‚…÷‚Â÷’ÂF‡2’Óâ°¢–b‡F‡3òæÆVæwF‚’–ç7V7DG&÷VB‡F‡5³Ò“°¢ÒÂG'VR“°§Ð 
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+}
+
+function setFile(info) {
+  if (!info) return;
+  currentFile = info;
+  $('fileName').textContent = info.name || '';
+  $('filePath').textContent = info.path || '';
+  $('fileSize').textContent = formatBytes(info.size);
+  $('delimiter').textContent = TEXT.delimiters[info.delimiter] || info.delimiterRune || 'â€”';
+  $('columns').textContent = String(info.columns ?? 'â€”');
+  renderPreview(info);
+  showOnly('workspace');
+}
+
+async function chooseFile() {
+  try {
+    const info = await getApp().SelectCSV();
+    if (info) setFile(info);
+  } catch (error) {
+    showToast(error);
+  }
+}
+
+async function inspectDropped(path) {
+  if (!path) return;
+  try {
+    setFile(await getApp().InspectFile(path));
+  } catch (error) {
+    showToast(error);
+  }
+}
+
+async function convertFile() {
+  if (!currentFile) return;
+  showOnly('progressView');
+  $('progressBar').style.width = '0%';
+  $('progressPercent').textContent = '0%';
+  $('progressBytes').textContent = '0 B';
+  try {
+    const result = await getApp().ConvertFile(currentFile.path, {
+      inferTypes: $('inferTypes').checked,
+      emptyAsNull: $('emptyAsNull').checked
+    });
+    if (!result || result.cancelled) {
+      showOnly('workspace');
+      return;
+    }
+    lastOutputPath = result.outputPath || '';
+    $('resultPath').textContent = lastOutputPath;
+    $('resultRows').textContent = Number(result.rows || 0).toLocaleString();
+    $('resultSize').textContent = formatBytes(result.bytes);
+    $('resultTime').textContent = formatDuration(result.durationMs);
+    showOnly('successView');
+  } catch (error) {
+    showOnly('workspace');
+    showToast(error);
+  }
+}
+
+function registerRuntimeHooks() {
+  if (!window.runtime) return false;
+
+  if (typeof window.runtime.EventsOn === 'function') {
+    window.runtime.EventsOn('conversion:progress', (progress) => {
+      const pct = Math.max(0, Math.min(100, Number(progress && progress.percent) || 0));
+      $('progressBar').style.width = `${pct}%`;
+      $('progressPercent').textContent = `${pct}%`;
+      $('progressBytes').textContent = progress && progress.total > 0
+        ? `${formatBytes(progress.bytes)} / ${formatBytes(progress.total)}`
+        : formatBytes(progress && progress.bytes);
+    });
+  }
+
+  if (typeof window.runtime.OnFileDrop === 'function') {
+    window.runtime.OnFileDrop((_x, _y, paths) => {
+      if (Array.isArray(paths) && paths.length > 0) inspectDropped(paths[0]);
+    }, true);
+  }
+  return true;
+}
+
+function waitForWails(attempt = 0) {
+  if (window.go && window.go.main && window.go.main.App && registerRuntimeHooks()) {
+    document.documentElement.dataset.backend = 'ready';
+    return;
+  }
+  if (attempt >= 100) {
+    document.documentElement.dataset.backend = 'failed';
+    showToast(new Error('BACKEND_NOT_READY'));
+    return;
+  }
+  setTimeout(() => waitForWails(attempt + 1), 50);
+}
+
+function init() {
+  applyText();
+  $('dropZone').addEventListener('click', chooseFile);
+  $('changeFile').addEventListener('click', chooseFile);
+  $('convertButton').addEventListener('click', convertFile);
+  $('revealButton').addEventListener('click', async () => {
+    if (!lastOutputPath) return;
+    try { await getApp().RevealFile(lastOutputPath); } catch (error) { showToast(error); }
+  });
+  $('againButton').addEventListener('click', () => {
+    currentFile = null;
+    lastOutputPath = '';
+    showOnly('dropView');
+  });
+  waitForWails();
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init, { once: true });
+} else {
+  init();
+}
