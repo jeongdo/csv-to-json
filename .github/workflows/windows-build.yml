@@ -19,10 +19,10 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-          cache: true
+          cache: false
 
-      - name: Download dependencies
-        run: go mod download
+      - name: Resolve module graph
+        run: go mod tidy
 
       - name: Test converter
         run: go test .
