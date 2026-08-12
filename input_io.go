@@ -26,6 +26,7 @@ type DesktopConvertSettings struct {
 	EmptyAsNull     bool            `json:"emptyAsNull"`
 	OutputDelimiter string          `json:"outputDelimiter"`
 	Mappings        []ColumnMapping `json:"mappings"`
+	OutputTemplate  string          `json:"outputTemplate"`
 }
 
 func inspectInput(path string) (*InputSummary, error) {

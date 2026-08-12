@@ -45,6 +45,11 @@
         <aside class="panel options-panel">
           <span class="eyebrow" id="optionsLabel">OPTIONS</span><h3 id="optionsTitle">Conversion</h3>
           <div class="schema-block"><div class="schema-head"><strong id="schemaTitle">Schema mapping</strong><small id="schemaHint">Rename, omit or reorder output columns.</small></div><div id="schemaEditor" class="schema-editor"></div></div>
+          <div id="templateBlock" class="template-block">
+            <div class="schema-head"><strong id="templateTitle">Output template</strong><small id="templateHint">Use {{rows}} exactly once where the JSON array should go.</small></div>
+            <textarea id="outputTemplate" rows="3" spellcheck="false">{{rows}}</textarea>
+            <div class="template-presets"><button id="templatePlain" type="button">Array only</button><button id="templateData" type="button">Wrap in data</button></div>
+          </div>
           <label id="csvInferRow" class="toggle-row">
             <span><strong id="inferTitle">Infer data types</strong><small id="inferHint">Numbers and booleans become native JSON values.</small></span>
             <input id="inferTypes" type="checkbox" checked />

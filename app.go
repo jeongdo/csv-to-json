@@ -91,11 +91,11 @@ func (a *App) ConvertInput(inputPath string, settings DesktopConvertSettings) (*
 			wailsruntime.EventsEmit(a.ctx, "conversion:progress", progress)
 		})
 	} else if summary.Kind == "xlsx" {
-		stats, outputBytes, err = convertXLSXFilePathMapped(inputPath, outputPath, ConvertSettings{InferTypes: settings.InferTypes, EmptyAsNull: settings.EmptyAsNull}, settings.Mappings, func(progress Progress) {
+		stats, outputBytes, err = convertXLSXFilePathMapped(inputPath, outputPath, ConvertSettings{InferTypes: settings.InferTypes, EmptyAsNull: settings.EmptyAsNull}, settings.Mappings, settings.OutputTemplate, func(progress Progress) {
 			wailsruntime.EventsEmit(a.ctx, "conversion:progress", progress)
 		})
 	} else {
-		stats, outputBytes, err = convertCSVFilePathMapped(inputPath, outputPath, ConvertSettings{InferTypes: settings.InferTypes, EmptyAsNull: settings.EmptyAsNull}, settings.Mappings, func(progress Progress) {
+		stats, outputBytes, err = convertCSVFilePathMapped(inputPath, outputPath, ConvertSettings{InferTypes: settings.InferTypes, EmptyAsNull: settings.EmptyAsNull}, settings.Mappings, settings.OutputTemplate, func(progress Progress) {
 			wailsruntime.EventsEmit(a.ctx, "conversion:progress", progress)
 		})
 	}

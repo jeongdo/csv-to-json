@@ -129,7 +129,7 @@ func convertCSVWithMappings(r io.Reader, w io.Writer, delim rune, settings Conve
 	return stats, err
 }
 
-func convertCSVFilePathMapped(inputPath, outputPath string, settings ConvertSettings, mappings []ColumnMapping, emit func(Progress)) (ConvertStats, int64, error) {
+func convertCSVFilePathMapped(inputPath, outputPath string, settings ConvertSettings, mappings []ColumnMapping, template string, emit func(Progress)) (ConvertStats, int64, error) {
 	if sameFilePath(inputPath, outputPath) {
 		return ConvertStats{}, 0, errors.New("OUTPUT_EQUALS_INPUT")
 	}
@@ -149,10 +149,12 @@ func convertCSVFilePathMapped(inputPath, outputPath string, settings ConvertSett
 	if _, err = input.Seek(0, io.SeekStart); err != nil {
 		return ConvertStats{}, 0, err
 	}
-	return writeTempConverted(inputPath, outputPath, info.Size(), emit, func(w io.Writer) (ConvertStats, error) {
+	return writeTempConvertedValidated(inputPath, outputPath, info.Size(), emit, func(w io.Writer) (ConvertStats, error) {
 		progress := &progressReader{r: input, total: info.Size(), emit: emit}
-		return convertCSVWithMappings(progress, w, delim, settings, mappings)
-	})
+		return writeOutputTemplate(w, template, func(rows io.Writer) (ConvertStats, error) {
+			return convertCSVWithMappings(progress, rows, delim, settings, mappings)
+		})
+	}, validateJSONFile)
 }
 
 func convertJSONToDelimitedMapped(r io.Reader, w io.Writer, headers []string, mappings []ColumnMapping, delim rune) (ConvertStats, error) {
@@ -281,17 +283,23 @@ func convertXLSXToJSONMapped(filename string, w io.Writer, settings ConvertSetti
 	return stats, err
 }
 
-func convertXLSXFilePathMapped(inputPath, outputPath string, settings ConvertSettings, mappings []ColumnMapping, emit func(Progress)) (ConvertStats, int64, error) {
+func convertXLSXFilePathMapped(inputPath, outputPath string, settings ConvertSettings, mappings []ColumnMapping, template string, emit func(Progress)) (ConvertStats, int64, error) {
 	info, err := os.Stat(inputPath)
 	if err != nil {
 		return ConvertStats{}, 0, err
 	}
-	return writeTempConverted(inputPath, outputPath, info.Size(), emit, func(w io.Writer) (ConvertStats, error) {
-		return convertXLSXToJSONMapped(inputPath, w, settings, mappings)
-	})
+	return writeTempConvertedValidated(inputPath, outputPath, info.Size(), emit, func(w io.Writer) (ConvertStats, error) {
+		return writeOutputTemplate(w, template, func(rows io.Writer) (ConvertStats, error) {
+			return convertXLSXToJSONMapped(inputPath, rows, settings, mappings)
+		})
+	}, validateJSONFile)
 }
 
 func writeTempConverted(inputPath, outputPath string, total int64, emit func(Progress), convert func(io.Writer) (ConvertStats, error)) (ConvertStats, int64, error) {
+	return writeTempConvertedValidated(inputPath, outputPath, total, emit, convert, nil)
+}
+
+func writeTempConvertedValidated(inputPath, outputPath string, total int64, emit func(Progress), convert func(io.Writer) (ConvertStats, error), validate func(string) error) (ConvertStats, int64, error) {
 	if sameFilePath(inputPath, outputPath) {
 		return ConvertStats{}, 0, errors.New("OUTPUT_EQUALS_INPUT")
 	}
@@ -326,6 +334,11 @@ func writeTempConverted(inputPath, outputPath string, total int64, emit func(Pro
 	}
 	if err = tmp.Close(); err != nil {
 		return stats, 0, fmt.Errorf("OUTPUT_WRITE_FAILED: %w", err)
+	}
+	if validate != nil {
+		if err = validate(tmpPath); err != nil {
+			return stats, 0, err
+		}
 	}
 	info, err := os.Stat(tmpPath)
 	if err != nil {
