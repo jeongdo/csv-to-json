@@ -32,11 +32,18 @@ func inspectInput(path string) (*InputSummary, error) {
 	if ext == ".json" {
 		return inspectJSONInput(path)
 	}
+	if ext == ".xlsx" {
+		return inspectXLSXInput(path)
+	}
 	summary, err := inspectFile(path)
 	if err != nil {
 		return nil, err
 	}
-	return &InputSummary{Path: summary.Path, Name: summary.Name, Size: summary.Size, Kind: "csv", Delimiter: summary.Delimiter, DelimiterRune: summary.DelimiterRune, Columns: summary.Columns, Headers: summary.Headers, Preview: summary.Preview}, nil
+	return &InputSummary{
+		Path: summary.Path, Name: summary.Name, Size: summary.Size, Kind: "csv",
+		Delimiter: summary.Delimiter, DelimiterRune: summary.DelimiterRune,
+		Columns: summary.Columns, Headers: summary.Headers, Preview: summary.Preview,
+	}, nil
 }
 
 var errPreviewComplete = errors.New("preview complete")
@@ -85,7 +92,10 @@ func inspectJSONInput(path string) (*InputSummary, error) {
 			preview[i][j] = obj.Values[header]
 		}
 	}
-	return &InputSummary{Path: absolutePath, Name: info.Name(), Size: info.Size(), Kind: "json", Columns: len(headers), Headers: headers, Preview: preview}, nil
+	return &InputSummary{
+		Path: absolutePath, Name: info.Name(), Size: info.Size(), Kind: "json",
+		Columns: len(headers), Headers: headers, Preview: preview,
+	}, nil
 }
 
 func convertJSONFilePath(inputPath, outputPath, delimiterName string, emit func(Progress)) (ConvertStats, int64, error) {
@@ -101,6 +111,7 @@ func convertJSONFilePath(inputPath, outputPath, delimiterName string, emit func(
 	if err != nil || info.IsDir() {
 		return ConvertStats{}, 0, errors.New("FILE_READ_FAILED")
 	}
+
 	headers, _, err := collectJSONHeaders(input)
 	if err != nil {
 		return ConvertStats{}, 0, err
@@ -111,6 +122,7 @@ func convertJSONFilePath(inputPath, outputPath, delimiterName string, emit func(
 	if _, err = input.Seek(0, io.SeekStart); err != nil {
 		return ConvertStats{}, 0, fmt.Errorf("FILE_READ_FAILED: %w", err)
 	}
+
 	outputPath, err = filepath.Abs(filepath.Clean(outputPath))
 	if err != nil {
 		return ConvertStats{}, 0, fmt.Errorf("OUTPUT_CREATE_FAILED: %w", err)
@@ -130,6 +142,7 @@ func convertJSONFilePath(inputPath, outputPath, delimiterName string, emit func(
 			_ = os.Remove(tmpPath)
 		}
 	}()
+
 	if emit != nil {
 		emit(Progress{Percent: 0, Total: info.Size()})
 	}

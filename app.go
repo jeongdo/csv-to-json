@@ -28,14 +28,14 @@ type ConversionResult struct {
 	DurationMS int64  `json:"durationMs,omitempty"`
 }
 
-func NewApp() *App { return &App{} }
+func NewApp() *App                         { return &App{} }
 func (a *App) startup(ctx context.Context) { a.ctx = ctx }
 
 func (a *App) SelectInput() (*InputSummary, error) {
 	path, err := wailsruntime.OpenFileDialog(a.ctx, wailsruntime.OpenDialogOptions{
-		Title: "Select CSV / JSON File",
+		Title: "Select CSV / JSON / XLSX File",
 		Filters: []wailsruntime.FileFilter{
-			{DisplayName: "CSV / JSON (*.csv;*.tsv;*.txt;*.json)", Pattern: "*.csv;*.tsv;*.txt;*.json"},
+			{DisplayName: "Data files (*.csv;*.tsv;*.txt;*.json;*.xlsx)", Pattern: "*.csv;*.tsv;*.txt;*.json;*.xlsx"},
 			{DisplayName: "All files (*.*)", Pattern: "*.*"},
 		},
 	})
@@ -62,6 +62,7 @@ func (a *App) ConvertInput(inputPath string, settings DesktopConvertSettings) (*
 	if err != nil {
 		return nil, errors.New("FILE_READ_FAILED")
 	}
+
 	baseName := strings.TrimSuffix(inputInfo.Name(), filepath.Ext(inputInfo.Name()))
 	var outputPath string
 	if summary.Kind == "json" {
@@ -89,6 +90,10 @@ func (a *App) ConvertInput(inputPath string, settings DesktopConvertSettings) (*
 		stats, outputBytes, err = convertJSONFilePath(inputPath, outputPath, settings.OutputDelimiter, func(progress Progress) {
 			wailsruntime.EventsEmit(a.ctx, "conversion:progress", progress)
 		})
+	} else if summary.Kind == "xlsx" {
+		stats, outputBytes, err = convertXLSXFilePath(inputPath, outputPath, ConvertSettings{InferTypes: settings.InferTypes, EmptyAsNull: settings.EmptyAsNull}, func(progress Progress) {
+			wailsruntime.EventsEmit(a.ctx, "conversion:progress", progress)
+		})
 	} else {
 		stats, outputBytes, err = convertFilePath(inputPath, outputPath, ConvertSettings{InferTypes: settings.InferTypes, EmptyAsNull: settings.EmptyAsNull}, func(progress Progress) {
 			wailsruntime.EventsEmit(a.ctx, "conversion:progress", progress)
@@ -103,7 +108,7 @@ func (a *App) ConvertInput(inputPath string, settings DesktopConvertSettings) (*
 
 func (a *App) SelectCSV() (*FileSummary, error) {
 	path, err := wailsruntime.OpenFileDialog(a.ctx, wailsruntime.OpenDialogOptions{
-		Title: "Select CSV / TSV File",
+		Title:   "Select CSV / TSV File",
 		Filters: []wailsruntime.FileFilter{{DisplayName: "Delimited text (*.csv;*.tsv;*.txt)", Pattern: "*.csv;*.tsv;*.txt"}},
 	})
 	if err != nil || path == "" {
