@@ -175,7 +175,7 @@ func convertCSV(r io.Reader, w io.Writer, delim rune) (ConvertStats, error) {
 			if _, err = fmt.Fprintf(w, "    %s: ", key); err != nil {
 				return stats, err
 			}
-t		var raw string
+			var raw string
 			if i < len(record) {
 				raw = record[i]
 			}
