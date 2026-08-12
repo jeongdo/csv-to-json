@@ -3,16 +3,12 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"io"
-	"mime/multipart"
-	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 )
 
 func TestInferValueJSONAlwaysValid(t *testing.T) {
-	cases := []string{"+1", ".5", "1.", "-01", "01", "0.5", "1e3", "true", "false", "hello", "  hello  ", ""}
+	cases := []string{"+1", ".5", "1.", "-01", "01", "0.5", "1e3", "true", "false", "hello", "  hello  ", "", "9223372036854775808"}
 	for _, input := range cases {
 		got := inferValueJSON(input)
 		if !json.Valid([]byte(got)) {
@@ -26,19 +22,42 @@ func TestInferValueSemantics(t *testing.T) {
 		input string
 		want  string
 	}{
-		{"+1", "1"},
-		{".5", "0.5"},
-		{"1.", "1"},
+		{"+1", `"+1"`},
+		{".5", `".5"`},
+		{"1.", `"1."`},
 		{"-01", `"-01"`},
 		{"01001", `"01001"`},
 		{"  hello  ", `"  hello  "`},
-		{" 42 ", "42"},
+		{" 42 ", `42`},
+		{"1e3", `1e3`},
+		{"9223372036854775808", `9223372036854775808`},
+		{"1234567890123456789012345678901234567890", `1234567890123456789012345678901234567890`},
 	}
 	for _, tt := range tests {
 		if got := inferValueJSON(tt.input); got != tt.want {
 			t.Errorf("inferValueJSON(%q)=%s, want %s", tt.input, got, tt.want)
 		}
 	}
+}
+
+func TestConvertSettings(t *testing.T) {
+	if got := inferValueJSONWithSettingsForTest("42", ConvertSettings{InferTypes: false}); got != `"42"` {
+		t.Fatalf("inference off: got %s", got)
+	}
+	if got := inferValueJSONWithSettingsForTest("", ConvertSettings{InferTypes: true, EmptyAsNull: true}); got != `null` {
+		t.Fatalf("empty-as-null: got %s", got)
+	}
+	if got := inferValueJSONWithSettingsForTest("  ", ConvertSettings{InferTypes: true, EmptyAsNull: true}); got != `"  "` {
+		t.Fatalf("whitespace-only cell should be preserved, got %s", got)
+	}
+}
+
+func inferValueJSONWithSettingsForTest(s string, settings ConvertSettings) string {
+	b, err := json.Marshal(inferValueWithSettings(s, settings))
+	if err != nil {
+		panic(err)
+	}
+	return string(b)
 }
 
 func TestNormaliseHeaders(t *testing.T) {
@@ -79,18 +98,18 @@ func TestDetectDelimiter(t *testing.T) {
 	}
 }
 
-func TestConvertCSVPreservesOrderAndWhitespace(t *testing.T) {
-	input := "name,code,note,active\nKim,01001,\"  keep me  \",true\n"
+func TestConvertCSVPreservesOrderWhitespaceAndValidJSON(t *testing.T) {
+	input := "name,code,note,active,big\nKim,01001,\"  keep me  \",true,9223372036854775808\n"
 	var out bytes.Buffer
 	stats, err := convertCSV(strings.NewReader(input), &out, ',')
 	if err != nil {
 		t.Fatal(err)
 	}
-	if stats.Rows != 1 || stats.Columns != 4 {
+	if stats.Rows != 1 || stats.Columns != 5 {
 		t.Fatalf("unexpected stats: %+v", stats)
 	}
 	got := out.String()
-	if !strings.Contains(got, `"code": "01001"`) || !strings.Contains(got, `"note": "  keep me  "`) {
+	if !strings.Contains(got, `"code": "01001"`) || !strings.Contains(got, `"note": "  keep me  "`) || !strings.Contains(got, `"big": 9223372036854775808`) {
 		t.Fatalf("data changed unexpectedly:\n%s", got)
 	}
 	if strings.Index(got, `"name"`) > strings.Index(got, `"code"`) {
@@ -101,35 +120,17 @@ func TestConvertCSVPreservesOrderAndWhitespace(t *testing.T) {
 	}
 }
 
-func TestConvertHandlerRejectsLateParseErrorWithoutPartialJSON(t *testing.T) {
-	var body bytes.Buffer
-	mw := multipart.NewWriter(&body)
-	part, err := mw.CreateFormFile("csvFile", "bad.csv")
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, _ = io.WriteString(part, "a,b\n1,2\n3\n")
-	_ = mw.Close()
-
-	req := httptest.NewRequest(http.MethodPost, "/convert", &body)
-	req.Header.Set("Content-Type", mw.FormDataContentType())
-	rr := httptest.NewRecorder()
-	convertHandler(rr, req)
-
-	if rr.Code != http.StatusBadRequest {
-		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
-	}
-	var resp ErrorResponse
-	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("response should be JSON error, got %q: %v", rr.Body.String(), err)
-	}
-	if resp.Code != "CSV_PARSE_FAILED" {
-		t.Fatalf("code=%s, want CSV_PARSE_FAILED", resp.Code)
+func TestConvertCSVRejectsLateParseError(t *testing.T) {
+	input := "a,b\n1,2\n3\n"
+	var out bytes.Buffer
+	_, err := convertCSV(strings.NewReader(input), &out, ',')
+	if err == nil || !strings.HasPrefix(err.Error(), "CSV_PARSE_FAILED") {
+		t.Fatalf("expected late CSV parse failure, got %v", err)
 	}
 }
 
 func FuzzInferValueJSONValid(f *testing.F) {
-	for _, seed := range []string{"+1", ".5", "-01", "hello", "true", "1e309", "  x  "} {
+	for _, seed := range []string{"+1", ".5", "-01", "hello", "true", "1e309", "  x  ", "9223372036854775808"} {
 		f.Add(seed)
 	}
 	f.Fuzz(func(t *testing.T, s string) {

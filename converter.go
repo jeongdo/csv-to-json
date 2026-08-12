@@ -6,31 +6,24 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"mime/multipart"
-	"net/http"
-	"os"
-	"strconv"
 	"strings"
 )
 
 const delimiterProbeRecords = 32
 
-type ErrorResponse struct {
-	Code   string `json:"code"`
-	Detail string `json:"detail,omitempty"`
-}
-
 type ConvertStats struct {
-	Rows      int   `json:"rows"`
-	Columns   int   `json:"columns"`
-	Delimiter rune  `json:"-"`
-	Bytes     int64 `json:"bytes,omitempty"`
+	Rows      int  `json:"rows"`
+	Columns   int  `json:"columns"`
+	Delimiter rune `json:"-"`
 }
 
-func writeError(w http.ResponseWriter, status int, code, detail string) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(ErrorResponse{Code: code, Detail: detail})
+type ConvertSettings struct {
+	InferTypes  bool `json:"inferTypes"`
+	EmptyAsNull bool `json:"emptyAsNull"`
+}
+
+func defaultConvertSettings() ConvertSettings {
+	return ConvertSettings{InferTypes: true}
 }
 
 func removeBOM(s string) string {
@@ -77,14 +70,26 @@ func hasProtectedLeadingZero(s string) bool {
 	return len(s) > 1 && s[0] == '0' && s[1] != '.'
 }
 
-func inferValue(s string) any {
+func parseJSONNumber(s string) (json.Number, bool) {
+	if s == "" || (s[0] != '-' && (s[0] < '0' || s[0] > '9')) {
+		return "", false
+	}
+	if !json.Valid([]byte(s)) {
+		return "", false
+	}
+	return json.Number(s), true
+}
+
+func inferValueWithSettings(s string, settings ConvertSettings) any {
 	trimmed := strings.TrimSpace(s)
 	if trimmed == "" {
-		// Preserve explicitly quoted/padded string data instead of silently trimming it.
-		if s != "" {
-			return s
+		if s == "" && settings.EmptyAsNull {
+			return nil
 		}
-		return ""
+		return s
+	}
+	if !settings.InferTypes {
+		return s
 	}
 	if trimmed == "true" {
 		return true
@@ -95,20 +100,16 @@ func inferValue(s string) any {
 	if hasProtectedLeadingZero(trimmed) {
 		return s
 	}
-	if i, err := strconv.ParseInt(trimmed, 10, 64); err == nil {
-		return i
-	}
-	if f, err := strconv.ParseFloat(trimmed, 64); err == nil {
-		if !strings.ContainsAny(trimmed, "Nn") &&
-			!strings.Contains(trimmed, "Inf") &&
-			!strings.Contains(trimmed, "inf") {
-			return f
-		}
+	if number, ok := parseJSONNumber(trimmed); ok {
+		return number
 	}
 	return s
 }
 
-// inferValueJSON remains as a narrow compatibility helper for existing callers/tests.
+func inferValue(s string) any {
+	return inferValueWithSettings(s, defaultConvertSettings())
+}
+
 func inferValueJSON(s string) string {
 	b, err := json.Marshal(inferValue(s))
 	if err != nil {
@@ -126,7 +127,7 @@ func writeJSONValue(w io.Writer, value any) error {
 	return err
 }
 
-func convertCSV(r io.Reader, w io.Writer, delim rune) (ConvertStats, error) {
+func convertCSVWithSettings(r io.Reader, w io.Writer, delim rune, settings ConvertSettings) (ConvertStats, error) {
 	reader := csv.NewReader(r)
 	reader.Comma = delim
 	reader.FieldsPerRecord = 0
@@ -179,7 +180,7 @@ func convertCSV(r io.Reader, w io.Writer, delim rune) (ConvertStats, error) {
 			if i < len(record) {
 				raw = record[i]
 			}
-			if err = writeJSONValue(w, inferValue(raw)); err != nil {
+			if err = writeJSONValue(w, inferValueWithSettings(raw, settings)); err != nil {
 				return stats, err
 			}
 		}
@@ -195,6 +196,10 @@ func convertCSV(r io.Reader, w io.Writer, delim rune) (ConvertStats, error) {
 		_, err = io.WriteString(w, "\n]\n")
 	}
 	return stats, err
+}
+
+func convertCSV(r io.Reader, w io.Writer, delim rune) (ConvertStats, error) {
+	return convertCSVWithSettings(r, w, delim, defaultConvertSettings())
 }
 
 type delimiterScore struct {
@@ -219,9 +224,6 @@ func probeDelimiter(rs io.ReadSeeker, delim rune) (delimiterScore, bool) {
 			break
 		}
 		if err != nil {
-			// A malformed later row must not erase a delimiter that was
-			// already established by a valid header/prefix. The converter
-			// will report the parse error during the full pass.
 			if records > 0 {
 				break
 			}
@@ -240,7 +242,7 @@ func detectDelimiterAdvanced(r io.Reader) (rune, bool) {
 	if !ok {
 		return ',', true
 	}
-	defer rs.Seek(0, io.SeekStart) // best-effort rewind for caller
+	defer func() { _, _ = rs.Seek(0, io.SeekStart) }()
 
 	candidates := []rune{',', '\t', '|', ';'}
 	valid := make([]delimiterScore, 0, len(candidates))
@@ -252,7 +254,6 @@ func detectDelimiterAdvanced(r io.Reader) (rune, bool) {
 	}
 
 	if len(valid) == 0 {
-		// A delimiter-free file is a valid one-column CSV.
 		if score, ok := probeDelimiter(rs, ','); ok && score.columns == 1 {
 			return ',', false
 		}
@@ -277,88 +278,36 @@ func detectDelimiterAdvanced(r io.Reader) (rune, bool) {
 	return best.delim, false
 }
 
-func isValidDelimiter(lines []string, delim rune) bool {
-	r := strings.NewReader(strings.Join(lines, "\n"))
-	score, ok := probeDelimiter(r, delim)
-	return ok && score.columns > 0
+func delimiterName(delim rune) string {
+	switch delim {
+	case ',':
+		return "comma"
+	case '\t':
+		return "tab"
+	case '|':
+		return "pipe"
+	case ';':
+		return "semicolon"
+	default:
+		return string(delim)
+	}
 }
 
-func mapConvertError(err error) (code, detail string) {
+func mapConvertError(err error) string {
 	if err == nil {
-		return "", ""
+		return ""
 	}
 	msg := err.Error()
 	switch {
 	case msg == "EMPTY_HEADER":
-		return "EMPTY_HEADER", ""
+		return "EMPTY_HEADER"
 	case strings.HasPrefix(msg, "DUPLICATE_HEADER:"):
-		return "DUPLICATE_HEADER", strings.TrimPrefix(msg, "DUPLICATE_HEADER:")
+		return msg
 	case strings.HasPrefix(msg, "HEADER_READ_FAILED"):
-		return "HEADER_READ_FAILED", ""
+		return "HEADER_READ_FAILED"
 	case strings.HasPrefix(msg, "CSV_PARSE_FAILED"):
-		return "CSV_PARSE_FAILED", ""
+		return "CSV_PARSE_FAILED"
 	default:
-		return "UNKNOWN_ERROR", ""
+		return "UNKNOWN_ERROR"
 	}
-}
-
-func resetMultipartFile(file multipart.File) error {
-	_, err := file.Seek(0, io.SeekStart)
-	return err
-}
-
-func convertHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeError(w, http.StatusMethodNotAllowed, "INVALID_METHOD", "")
-		return
-	}
-	if err := r.ParseMultipartForm(8 << 20); err != nil {
-		writeError(w, http.StatusBadRequest, "UPLOAD_FAILED", "")
-		return
-	}
-
-	file, _, err := r.FormFile("csvFile")
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "FILE_READ_FAILED", "")
-		return
-	}
-	defer file.Close()
-
-	delim, ambiguous := detectDelimiterAdvanced(file)
-	if ambiguous {
-		writeError(w, http.StatusBadRequest, "MIXED_DELIMITER_DETECTED", "")
-		return
-	}
-	if err := resetMultipartFile(file); err != nil {
-		writeError(w, http.StatusBadRequest, "FILE_READ_FAILED", "")
-		return
-	}
-
-	// Convert to a temporary file first. The HTTP response is not committed until
-	// the complete CSV has been validated, so malformed late rows cannot produce
-	// a successful but truncated JSON download.
-	tmp, err := os.CreateTemp("", "csv-to-json-*.json")
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "UNKNOWN_ERROR", "")
-		return
-	}
-	tmpName := tmp.Name()
-	defer func() {
-		tmp.Close()
-		_ = os.Remove(tmpName)
-	}()
-
-	if _, err = convertCSV(file, tmp, delim); err != nil {
-		code, detail := mapConvertError(err)
-		writeError(w, http.StatusBadRequest, code, detail)
-		return
-	}
-	if _, err = tmp.Seek(0, io.SeekStart); err != nil {
-		writeError(w, http.StatusInternalServerError, "UNKNOWN_ERROR", "")
-		return
-	}
-
-	w.Header().Set("Content-Disposition", "attachment; filename=\"download.json\"")
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	_, _ = io.Copy(w, tmp)
 }

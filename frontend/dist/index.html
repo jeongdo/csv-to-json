@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light dark" />
+  <title>CSV to JSON</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div class="brand-mark" aria-hidden="true">{ }</div>
+      <div>
+        <h1>CSV <span>→</span> JSON</h1>
+        <p id="subtitle">Fast, local conversion. Your data never leaves this computer.</p>
+      </div>
+      <div class="local-badge" id="localBadge">LOCAL ONLY</div>
+    </header>
+
+    <section id="dropView" class="panel drop-panel">
+      <button id="dropZone" class="drop-zone" type="button">
+        <div class="file-icon" aria-hidden="true">CSV</div>
+        <strong id="dropTitle">Drop a CSV file here</strong>
+        <span id="dropHint">or click to choose a file</span>
+        <small id="dropFormats">CSV · TSV · pipe · semicolon · UTF-8 BOM</small>
+      </button>
+    </section>
+
+    <section id="workspace" class="workspace hidden">
+      <div class="file-card panel">
+        <div class="file-heading">
+          <div>
+            <span class="eyebrow" id="selectedLabel">SELECTED FILE</span>
+            <h2 id="fileName"></h2>
+            <p id="filePath"></p>
+          </div>
+          <button id="changeFile" class="ghost-button" type="button">Change</button>
+        </div>
+        <div class="metrics">
+          <div><span id="sizeLabel">Size</span><strong id="fileSize">—</strong></div>
+          <div><span id="delimiterLabel">Delimiter</span><strong id="delimiter">—</strong></div>
+          <div><span id="columnsLabel">Columns</span><strong id="columns">—</strong></div>
+        </div>
+      </div>
+
+      <div class="content-grid">
+        <section class="panel preview-panel">
+          <div class="section-title">
+            <div>
+              <span class="eyebrow" id="previewLabel">PREVIEW</span>
+              <h3 id="previewTitle">First rows</h3>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table id="previewTable"></table>
+          </div>
+        </section>
+
+        <aside class="panel options-panel">
+          <span class="eyebrow" id="optionsLabel">OPTIONS</span>
+          <h3 id="optionsTitle">Conversion</h3>
+          <label class="toggle-row">
+            <span><strong id="inferTitle">Infer data types</strong><small id="inferHint">Numbers and booleans become native JSON values.</small></span>
+            <input id="inferTypes" type="checkbox" checked />
+          </label>
+          <label class="toggle-row">
+            <span><strong id="nullTitle">Empty cells as null</strong><small id="nullHint">Otherwise empty cells stay as empty strings.</small></span>
+            <input id="emptyAsNull" type="checkbox" />
+          </label>
+          <div class="safety-note">
+            <strong id="safeTitle">Safe conversion</strong>
+            <span id="safeHint">Leading-zero values stay strings. Output is committed only after the full CSV succeeds.</span>
+          </div>
+          <button id="convertButton" class="primary-button" type="button">Convert to JSON</button>
+        </aside>
+      </div>
+    </section>
+
+    <section id="progressView" class="panel progress-card hidden">
+      <div class="spinner" aria-hidden="true"></div>
+      <h2 id="progressTitle">Converting…</h2>
+      <p id="progressText">Reading the CSV directly from disk.</p>
+      <div class="progress-track"><div id="progressBar"></div></div>
+      <div class="progress-meta"><span id="progressPercent">0%</span><span id="progressBytes">0 B</span></div>
+    </section>
+
+    <section id="successView" class="panel success-card hidden">
+      <div class="success-icon" aria-hidden="true">✓</div>
+      <span class="eyebrow" id="completeLabel">COMPLETE</span>
+      <h2 id="completeTitle">JSON file created</h2>
+      <p id="resultPath"></p>
+      <div class="result-metrics">
+        <div><span id="rowsLabel">Rows</span><strong id="resultRows">—</strong></div>
+        <div><span id="outputSizeLabel">Output</span><strong id="resultSize">—</strong></div>
+        <div><span id="timeLabel">Time</span><strong id="resultTime">—</strong></div>
+      </div>
+      <div class="success-actions">
+        <button id="revealButton" class="primary-button" type="button">Show in folder</button>
+        <button id="againButton" class="ghost-button" type="button">Convert another</button>
+      </div>
+    </section>
+
+    <div id="toast" role="status" aria-live="polite"></div>
+    <footer><span>CSV to JSON</span><span>v0.2.0 · Wails</span></footer>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>

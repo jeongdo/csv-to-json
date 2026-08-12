@@ -1,0 +1,113 @@
+package main
+
+import (
+	"context"
+	"errors"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"sync/atomic"
+	"time"
+
+	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
+)
+
+type App struct {
+	ctx        context.Context
+	converting atomic.Bool
+}
+
+type ConversionResult struct {
+	Cancelled  bool   `json:"cancelled"`
+	OutputPath string `json:"outputPath,omitempty"`
+	Rows       int    `json:"rows,omitempty"`
+	Columns    int    `json:"columns,omitempty"`
+	Bytes      int64  `json:"bytes,omitempty"`
+	DurationMS int64  `json:"durationMs,omitempty"`
+}
+
+func NewApp() *App {
+	return &App{}
+}
+
+func (a *App) startup(ctx context.Context) {
+	a.ctx = ctx
+}
+
+func (a *App) SelectCSV() (*FileSummary, error) {
+	path, err := wailsruntime.OpenFileDialog(a.ctx, wailsruntime.OpenDialogOptions{
+		Title: "Select CSV / TSV File",
+		Filters: []wailsruntime.FileFilter{
+			{DisplayName: "Delimited text (*.csv;*.tsv;*.txt)", Pattern: "*.csv;*.tsv;*.txt"},
+			{DisplayName: "All files (*.*)", Pattern: "*.*"},
+		},
+	})
+	if err != nil || path == "" {
+		return nil, err
+	}
+	return inspectFile(path)
+}
+
+func (a *App) InspectFile(path string) (*FileSummary, error) {
+	return inspectFile(path)
+}
+
+func (a *App) ConvertFile(inputPath string, settings ConvertSettings) (*ConversionResult, error) {
+	if !a.converting.CompareAndSwap(false, true) {
+		return nil, errors.New("CONVERSION_IN_PROGRESS")
+	}
+	defer a.converting.Store(false)
+
+	inputPath = filepath.Clean(inputPath)
+	inputInfo, err := os.Stat(inputPath)
+	if err != nil {
+		return nil, errors.New("FILE_READ_FAILED")
+	}
+
+	base := strings.TrimSuffix(inputInfo.Name(), filepath.Ext(inputInfo.Name())) + ".json"
+	outputPath, err := wailsruntime.SaveFileDialog(a.ctx, wailsruntime.SaveDialogOptions{
+		Title:            "Save JSON",
+		DefaultDirectory: filepath.Dir(inputPath),
+		DefaultFilename:  base,
+		Filters: []wailsruntime.FileFilter{
+			{DisplayName: "JSON (*.json)", Pattern: "*.json"},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	if outputPath == "" {
+		return &ConversionResult{Cancelled: true}, nil
+	}
+
+	started := time.Now()
+	stats, outputBytes, err := convertFilePath(inputPath, outputPath, settings, func(progress Progress) {
+		wailsruntime.EventsEmit(a.ctx, "conversion:progress", progress)
+	})
+	if err != nil {
+		return nil, err
+	}
+	outputPath, _ = filepath.Abs(filepath.Clean(outputPath))
+
+	return &ConversionResult{
+		OutputPath: outputPath,
+		Rows:       stats.Rows,
+		Columns:    stats.Columns,
+		Bytes:      outputBytes,
+		DurationMS: time.Since(started).Milliseconds(),
+	}, nil
+}
+
+func (a *App) RevealFile(path string) error {
+	path = filepath.Clean(path)
+	switch runtime.GOOS {
+	case "windows":
+		return exec.Command("explorer.exe", "/select,", path).Start()
+	case "darwin":
+		return exec.Command("open", "-R", path).Start()
+	default:
+		return exec.Command("xdg-open", filepath.Dir(path)).Start()
+	}
+}
