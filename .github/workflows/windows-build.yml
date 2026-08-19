@@ -10,25 +10,30 @@ permissions:
 
 jobs:
   test-build:
-    runs-on: windows-latest
+    runs-on: [self-hosted, Windows, X64]
+    defaults:
+      run:
+        shell: pwsh
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Diagnostics
+        run: |
+          Write-Host "=== Go ==="
+          go version
+          Write-Host "=== GOROOT ==="
+          Write-Host $env:GOROOT
+          Write-Host "=== Node ==="
+          node --version
+
       - name: Validate frontend JavaScript
         run: node --check frontend/dist/app.js
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
 
       - name: Download dependencies
         run: go mod download
 
       - name: Verify module metadata
-        shell: pwsh
         run: |
           go mod tidy
           git diff --exit-code -- go.mod go.sum
@@ -47,7 +52,6 @@ jobs:
         run: wails build -clean
 
       - name: Verify executable
-        shell: pwsh
         run: |
           if (-not (Test-Path "build/bin/CsvToJson.exe")) {
             throw "CsvToJson.exe was not produced"
