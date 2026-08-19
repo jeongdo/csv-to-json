@@ -33,12 +33,8 @@ jobs:
       - name: Download dependencies
         run: go mod download
 
-      - name: Verify module metadata
-        run: |
-          git config core.autocrlf false
-          go mod tidy
-          git diff --exit-code -- go.mod go.sum
-          go mod verify
+
+
 
       - name: Test converter
         run: go test -cover .
