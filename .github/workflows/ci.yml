@@ -1,0 +1,52 @@
+name: ci
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+permissions:
+  contents: read
+  statuses: write
+
+jobs:
+  test:
+    runs-on: [self-hosted, Windows, X64]
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Publish Pending Status
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          pwsh -NoProfile -File C:\actions-runners\shared\Publish-CiStatus.ps1 -State pending -Description "Waiting for SubPC CI slot"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run CI Through Global Gate
+        run: |
+          pwsh -NoProfile -File C:\actions-runners\shared\Invoke-CiGate.ps1 -ScriptPath "$PWD\scripts\ci-windows.ps1"
+
+      - name: Upload Executable
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: CsvToJson-windows
+          path: build/bin/CsvToJson.exe
+          if-no-files-found: error
+
+      - name: Publish Final Status
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $state = switch ("${{ job.status }}") {
+            "success"   { "success" }
+            "failure"   { "failure" }
+            "cancelled" { "error" }
+            default     { "error" }
+          }
+          pwsh -NoProfile -File C:\actions-runners\shared\Publish-CiStatus.ps1 -State $state
